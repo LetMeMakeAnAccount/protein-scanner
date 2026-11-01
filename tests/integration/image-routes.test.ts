@@ -15,6 +15,15 @@ function request(bytes = "frame", headers: Record<string, string> = {}, signal?:
   form.set("image", new Blob([bytes], { type: "image/jpeg" }), "frame.jpg");
   return new Request(`${origin}/api/scan/analyze`, { method: "POST", headers: { origin, ...headers }, body: form, signal });
 }
+function postTo(url: string, headers: Record<string, string>): Request {
+  const form = new FormData();
+  form.set("image", new Blob(["frame"], { type: "image/jpeg" }), "frame.jpg");
+  return new Request(url, { method: "POST", headers, body: form });
+}
+const publicUrl = "https://protein-scanner.netlify.app/api/scan/analyze";
+function sameOriginHandlers() {
+  return createImageHandlers({ allowedOrigins: [], resolveClientIdentity: () => "peer", quota: new MemoryQuota({ enabled: true, globalCap: 5 }), muse: { analyze }, sanitize });
+}
 beforeEach(() => {
   analyze = vi.fn(async (_image: ImageInput, context: QuotaActionContext) => { context.assertActive(); return candidate; });
   sanitize = vi.fn(async (image: ImageInput) => image);
@@ -40,6 +49,47 @@ describe("transient image analysis", () => {
     expect((await handlers.analyze(request("frame", {}, undefined, { unexpected: "value" }))).status).toBe(400);
     expect((await handlers.analyze(send(duplicate))).status).toBe(400);
     expect(analyze).not.toHaveBeenCalled(); expect(sanitize).not.toHaveBeenCalled();
+  });
+  it("accepts same-origin scans without an ALLOWED_ORIGINS entry", async () => {
+    const response = await sameOriginHandlers().analyze(postTo(publicUrl, { origin: "https://protein-scanner.netlify.app" }));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true, data: { candidate } });
+    expect(analyze).toHaveBeenCalledTimes(1);
+  });
+  it("accepts the public origin forwarded by a proxy", async () => {
+    const deployed = sameOriginHandlers();
+    const forwarded = await deployed.analyze(postTo("http://localhost:3000/api/scan/analyze", { origin: "https://protein-scanner.netlify.app", "x-forwarded-host": "protein-scanner.netlify.app", "x-forwarded-proto": "https" }));
+    expect(forwarded.status).toBe(200);
+    const hostHeader = await deployed.analyze(postTo("http://localhost:3000/api/scan/analyze", { origin: "https://protein-scanner.netlify.app", host: "Protein-Scanner.Netlify.App" }));
+    expect(hostHeader.status).toBe(200);
+    expect(analyze).toHaveBeenCalledTimes(2);
+  });
+  it("still rejects attacker, missing and opaque origins", async () => {
+    const deployed = sameOriginHandlers();
+    expect((await deployed.analyze(postTo(publicUrl, { origin: "https://evil.example" }))).status).toBe(403);
+    expect((await deployed.analyze(postTo(publicUrl, {}))).status).toBe(403);
+    expect((await deployed.analyze(postTo(publicUrl, { origin: "null", host: "evil.example" }))).status).toBe(403);
+    expect(analyze).not.toHaveBeenCalled();
+  });
+  it("keeps an explicit ALLOWED_ORIGINS entry authoritative", async () => {
+    const configured = createImageHandlers({ allowedOrigins: [origin], resolveClientIdentity: () => "peer", quota: new MemoryQuota({ enabled: true, globalCap: 5 }), muse: { analyze }, sanitize });
+    const response = await configured.analyze(postTo("https://internal.example/api/scan/analyze", { origin }));
+    expect(response.status).toBe(200);
+    expect((await configured.analyze(postTo("https://internal.example/api/scan/analyze", { origin: "https://evil.example" }))).status).toBe(403);
+    expect(analyze).toHaveBeenCalledTimes(1);
+  });
+  it("ignores malformed forwarded host and scheme candidates", async () => {
+    const deployed = sameOriginHandlers();
+    const url = "http://localhost:3000/api/scan/analyze";
+    const cases: Record<string, string>[] = [
+      { origin: "https://evil.example", "x-forwarded-host": "protein-scanner.netlify.app, evil.example", "x-forwarded-proto": "https" },
+      { origin: "https://evil.example", "x-forwarded-host": "evil.example evil.example", "x-forwarded-proto": "https" },
+      { origin: "https://evil.example", "x-forwarded-host": "https://evil.example", "x-forwarded-proto": "https" },
+      { origin: "https://evil.example", host: "evil.example", "x-forwarded-proto": "https, http" },
+      { origin: "https://protein-scanner.netlify.app", host: "protein-scanner.netlify.app", "x-forwarded-proto": "http" },
+    ];
+    for (const headers of cases) expect((await deployed.analyze(postTo(url, headers))).status).toBe(403);
+    expect(analyze).not.toHaveBeenCalled();
   });
   it("rejects disallowed origin and oversized streamed body before decoding", async () => {
     expect((await handlers.analyze(request("frame", { origin: "https://evil.example" }))).status).toBe(403);

@@ -57,6 +57,7 @@ Set the following in `.env.local` for local development:
 MUSE_API_KEY=<Meta Model API key>
 MODEL_ENABLED=true
 MODEL_MAX_REQUESTS=200
+# Optional: same-origin requests are accepted automatically.
 ALLOWED_ORIGINS=http://localhost:3000
 ```
 
@@ -64,7 +65,7 @@ Notes:
 
 - `MUSE_API_KEY` is developer-only and server-side. Never expose it to the client and never prefix it with `NEXT_PUBLIC_`.
 - `MODEL_ENABLED` must be `true` and `MUSE_API_KEY` must be set for model calls to be enabled. A valid `MODEL_MAX_REQUESTS` greater than 0 is also required by the server configuration.
-- `ALLOWED_ORIGINS` must exactly match the app origin, or scan requests return 403. For local development that is `http://localhost:3000`.
+- `ALLOWED_ORIGINS` is optional. A scan request is accepted when its `Origin` header exactly matches the request's own public origin, derived server-side from the request URL or from the proxy's `x-forwarded-host` / `host` headers (with `x-forwarded-proto`). Set `ALLOWED_ORIGINS` (comma-separated, exact origins) only to allow additional origins; it takes priority and is recommended when the deployment uses a custom domain or a proxy that rewrites host headers. Any other origin, or a request without an `Origin` header, returns 403. For local development the automatic origin is `http://localhost:3000`.
 - `MUSE_MODEL` and `MUSE_API_URL` are optional overrides. If unset, the server defaults to model `muse-spark-1.2` and endpoint `https://api.meta.ai/v1/chat/completions`.
 
 Start the dev server:
@@ -115,4 +116,4 @@ These run the automated test suite (Vitest), the TypeScript check, and the Next.
 
 Deployment has not yet been performed.
 
-When deploying to a host, set the same environment variables there (`MUSE_API_KEY`, `MODEL_ENABLED`, `MODEL_MAX_REQUESTS`, and optionally `MUSE_MODEL` / `MUSE_API_URL`), and set `ALLOWED_ORIGINS` to exactly match the public HTTPS origin of the deployed app. Camera use on the public URL requires HTTPS.
+When deploying to a host, set the same environment variables there (`MUSE_API_KEY`, `MODEL_ENABLED`, `MODEL_MAX_REQUESTS`, and optionally `MUSE_MODEL` / `MUSE_API_URL`). The deployed app accepts same-origin scan requests automatically, so `ALLOWED_ORIGINS` is optional; set it to a comma-separated list of exact origins only when you must allow origins other than the site's own public origin (recommended for custom domains or proxies that rewrite host headers). Camera use on the public URL requires HTTPS.

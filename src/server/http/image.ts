@@ -25,11 +25,42 @@ function errorResponse(error: unknown): Response {
 }
 export function imageUnavailableResponse(): Response { return errorResponse(unavailable()); }
 function assertActive(request: Request) { if (request.signal.aborted) throw cancelled(); }
+const LOOPBACK_HOSTNAMES = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
+// One host[:port], never a comma list, whitespace, path, or userinfo.
+const HOST_HEADER = /^(?:[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?|\[[0-9a-f:.]+\])(?::\d{1,5})?$/i;
+function canonicalOrigin(value: string, exact = false): string | null {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+    return !exact || url.origin === value ? url.origin : null;
+  } catch { return null; }
+}
+function protocolFor(host: string, forwarded: string | null): string | null {
+  if (forwarded !== null) return forwarded === "http" || forwarded === "https" ? `${forwarded}:` : null;
+  try { return LOOPBACK_HOSTNAMES.has(new URL(`http://${host}`).hostname) ? "http:" : "https:"; } catch { return null; }
+}
+// Origins this request may legitimately have been sent from. Candidate sources are
+// the URL Next reconstructed and the proxy host headers; each is validated and
+// canonicalized independently, so a malformed header cannot widen the set.
+function requestOrigins(request: Request): Set<string> {
+  const origins = new Set<string>();
+  try { const url = new URL(request.url); if (url.protocol === "http:" || url.protocol === "https:") origins.add(url.origin); } catch { /* ignore malformed URL */ }
+  const forwardedProto = request.headers.get("x-forwarded-proto");
+  for (const host of [request.headers.get("x-forwarded-host"), request.headers.get("host")]) {
+    if (!host || !HOST_HEADER.test(host)) continue;
+    const protocol = protocolFor(host, forwardedProto);
+    if (!protocol) continue;
+    const candidate = canonicalOrigin(`${protocol}//${host}`);
+    if (candidate) origins.add(candidate);
+  }
+  return origins;
+}
 function originCheck(request: Request, allowed: readonly string[]) {
   const origin = request.headers.get("origin");
-  if (!origin || !allowed.includes(origin)) throw new RouteError(403, "forbidden", "Origin not allowed");
-  try { const url = new URL(origin); if (!["http:", "https:"].includes(url.protocol) || url.origin !== origin) throw new Error(); }
-  catch { throw new RouteError(403, "forbidden", "Origin not allowed"); }
+  if (!origin || origin === "null" || !canonicalOrigin(origin, true)) throw new RouteError(403, "forbidden", "Origin not allowed");
+  // Explicit configuration wins; same-origin acceptance needs no configuration.
+  if (allowed.includes(origin) || requestOrigins(request).has(origin)) return;
+  throw new RouteError(403, "forbidden", "Origin not allowed");
 }
 async function readBounded(request: Request): Promise<Uint8Array> {
   assertActive(request);

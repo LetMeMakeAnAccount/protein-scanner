@@ -27,6 +27,13 @@ describe("transient production composition", () => {
       expect(spy).not.toHaveBeenCalled();
     } finally { spy.mockRestore(); }
   });
+  it("treats ALLOWED_ORIGINS as optional for same-origin deployments", async () => {
+    const services = createProductionServices({ NODE_ENV: "test" });
+    const request = (headers: Record<string, string>) => { const form = new FormData(); form.set("image", new Blob(["unused"], { type: "image/jpeg" }), "x.jpg"); return new Request("https://preview-123.netlify.app/api/scan/analyze", { method: "POST", headers, body: form }); };
+    expect((await services.image().analyze(request({}))).status).toBe(403);
+    expect((await services.image().analyze(request({ origin: "https://evil.example" }))).status).toBe(403);
+    expect((await services.image().analyze(request({ origin: "https://preview-123.netlify.app" }))).status).toBe(503);
+  });
   it("shares the process cap across independently constructed services and fails closed on config changes", async () => {
     const env = { NODE_ENV: "test" as const, MUSE_API_KEY: "test-key", MODEL_ENABLED: "true", MODEL_MAX_REQUESTS: "2", ALLOWED_ORIGINS: "https://app.example" };
     const spy = vi.spyOn(MuseClient.prototype, "analyze").mockResolvedValue({ item: null, barcode: null, price: null, labelNutrition: null, uncertainties: [] });
