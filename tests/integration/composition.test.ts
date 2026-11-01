@@ -18,7 +18,7 @@ describe("transient production composition", () => {
   });
   it("never calls the model when disabled, unkeyed, or lacking a valid cap", async () => {
     const spy = vi.spyOn(MuseClient.prototype, "analyze");
-    const request = () => { const form = new FormData(); form.set("metaConsent", "true"); form.set("image", new Blob(["unused"], { type: "image/jpeg" }), "x.jpg"); return new Request("https://app.example/api/scan/analyze", { method: "POST", headers: { origin: "https://app.example" }, body: form }); };
+    const request = () => { const form = new FormData(); form.set("image", new Blob(["unused"], { type: "image/jpeg" }), "x.jpg"); return new Request("https://app.example/api/scan/analyze", { method: "POST", headers: { origin: "https://app.example" }, body: form }); };
     const common = { NODE_ENV: "test" as const, ALLOWED_ORIGINS: "https://app.example" };
     try {
       for (const env of [{ ...common, MODEL_ENABLED: "true", MODEL_MAX_REQUESTS: "3" }, { ...common, MODEL_ENABLED: "TRUE", MODEL_MAX_REQUESTS: "3", MUSE_API_KEY: "test" }, { ...common, MODEL_ENABLED: "true", MODEL_MAX_REQUESTS: "invalid", MUSE_API_KEY: "test" }]) {
@@ -31,7 +31,7 @@ describe("transient production composition", () => {
     const env = { NODE_ENV: "test" as const, MUSE_API_KEY: "test-key", MODEL_ENABLED: "true", MODEL_MAX_REQUESTS: "2", ALLOWED_ORIGINS: "https://app.example" };
     const spy = vi.spyOn(MuseClient.prototype, "analyze").mockResolvedValue({ item: null, barcode: null, price: null, labelNutrition: null, uncertainties: [] });
     const jpeg = await sharp({ create: { width: 1, height: 1, channels: 3, background: "red" } }).jpeg().toBuffer();
-    const request = () => { const form = new FormData(); form.set("metaConsent", "true"); form.set("image", new Blob([Uint8Array.from(jpeg).buffer], { type: "image/jpeg" }), "x.jpg"); return new Request("https://app.example/api/scan/analyze", { method: "POST", headers: { origin: "https://app.example", "x-forwarded-for": crypto.randomUUID() }, body: form }); };
+    const request = () => { const form = new FormData(); form.set("image", new Blob([Uint8Array.from(jpeg).buffer], { type: "image/jpeg" }), "x.jpg"); return new Request("https://app.example/api/scan/analyze", { method: "POST", headers: { origin: "https://app.example", "x-forwarded-for": crypto.randomUUID() }, body: form }); };
     try {
       expect((await createProductionServices(env).image().analyze(request())).status).toBe(200);
       expect((await createProductionServices(env).image().analyze(request())).status).toBe(200);

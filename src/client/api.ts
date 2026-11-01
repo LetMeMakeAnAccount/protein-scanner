@@ -31,11 +31,10 @@ async function request<T>(input: string, init?: RequestInit): Promise<T> {
   return unwrap<T>(response);
 }
 
-/** Sends one image for analysis. Only call after the user has given Meta consent. */
+/** Sends one image for analysis. */
 export async function analyzeImage(image: Blob): Promise<AnalysisResult> {
   const form = new FormData();
   form.append("image", image, "photo.jpg");
-  form.append("metaConsent", "true");
   return request<AnalysisResult>("/api/scan/analyze", { method: "POST", body: form });
 }
 

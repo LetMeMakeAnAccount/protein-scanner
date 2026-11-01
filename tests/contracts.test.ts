@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { analysisResultSchema, imageConsentsSchema, parseCandidate, parseConfirmedInput } from "../src/contracts/schemas";
+import { analysisResultSchema, parseCandidate, parseConfirmedInput } from "../src/contracts/schemas";
 
 const source = { kind: "user", label: "Manual entry" };
 const basis = { amount: 100, unit: "g" };
@@ -78,9 +78,7 @@ describe("contract validation", () => {
     expect(() => parseConfirmedInput({ ...confirmed, food: { ...food, source: { ...source, url: "not a url" } } })).toThrow(/^Invalid input$/);
   });
 
-  it("accepts only Meta consent and a candidate-only analysis result", () => {
-    expect(imageConsentsSchema.safeParse({ meta: true }).success).toBe(true);
-    expect(imageConsentsSchema.safeParse({ meta: true, contribution: true }).success).toBe(false);
+  it("accepts only a candidate-only analysis result", () => {
     expect(analysisResultSchema.safeParse({ candidate }).success).toBe(true);
     expect(analysisResultSchema.safeParse({ candidate, selectionProof: "legacy" }).success).toBe(false);
   });

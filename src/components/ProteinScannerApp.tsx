@@ -8,6 +8,7 @@ import { loadDiary, saveDiary } from "../client/diary";
 import { EXAMPLE, EXAMPLE_BADGE } from "../client/example";
 import DiaryPanel, { formatNumber } from "./DiaryPanel";
 import ScannerPanel from "./ScannerPanel";
+import { describeAnalysisError } from "./analysisError";
 
 type View = "home" | "scanner" | "review" | "results";
 type PhysicalUnit = "g" | "kg" | "ml" | "l";
@@ -147,11 +148,11 @@ async function reencodeImage(file: File): Promise<Blob> {
 
 export default function ProteinScannerApp() {
   const [view, setView] = useState<View>("home");
-  const [consent, setConsent] = useState(false);
   const [draft, setDraft] = useState<Draft>(emptyDraft);
   const [confirmed, setConfirmed] = useState<ConfirmedInput | null>(null);
   const [confirmedExample, setConfirmedExample] = useState(false);
   const [confirmError, setConfirmError] = useState("");
+  const [reviewNotice, setReviewNotice] = useState("");
   const [homeError, setHomeError] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
   const [entries, setEntries] = useState<DiaryEntry[]>([]);
@@ -200,8 +201,9 @@ export default function ProteinScannerApp() {
   }, []);
 
   const openReview = useCallback(
-    (next: Draft) => {
+    (next: Draft, notice = "") => {
       setDraft(next);
+      setReviewNotice(notice);
       setOffMatches([]);
       setOffSelected(false);
       setOffBackup(null);
@@ -221,8 +223,12 @@ export default function ProteinScannerApp() {
     [openReview ],
   );
 
+  const handleUnreadable = useCallback(() => {
+    openReview(emptyDraft(), "Couldn't read the label. Type the item name and what you can see.");
+  }, [openReview]);
+
   async function handleUpload(file: File | null) {
-    if (!file || !consent) return;
+    if (!file) return;
     setHomeError("");
     setAnalyzing(true);
     const previewUrl = URL.createObjectURL(file);
@@ -233,8 +239,7 @@ export default function ProteinScannerApp() {
       const { candidate } = await analyzeImage(image);
       openReview(candidateToDraft(candidate, previewUrl));
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Photo analysis failed.";
-      setHomeError(`Photo analysis failed: ${message} You can try again, or enter the values manually below.`);
+      setHomeError(`Photo analysis failed: ${describeAnalysisError(error)} You can enter the values manually below.`);
     } finally {
       setAnalyzing(false);
     }
@@ -262,6 +267,11 @@ export default function ProteinScannerApp() {
       setOffMatches([]);
       setOffStatus("Open Food Facts did not respond. You can enter the label values yourself.");
     }
+  }
+
+  function handleFindNutritionFromResults() {
+    setView("review");
+    void handleFindNutrition();
   }
 
   function applyOffMatch(match: FoodMatch) {
@@ -410,18 +420,6 @@ export default function ProteinScannerApp() {
       {view === "home" && (
         <section aria-labelledby="start-heading" className="card">
           <h2 id="start-heading">Start</h2>
-          <div className="consent">
-            <input
-              id="meta-consent"
-              type="checkbox"
-              checked={consent}
-              onChange={(event) => setConsent(event.target.checked)}
-            />
-            <label htmlFor="meta-consent">
-              I agree: analyze my photo with Meta's AI. Manual entry and the example send nothing.
-            </label>
-          </div>
-          {!consent && <p className="muted">Tick the box above to turn on camera scanning and photo upload.</p>}
           {homeError && (
             <p role="alert" className="alert">
               {homeError}
@@ -436,7 +434,6 @@ export default function ProteinScannerApp() {
             <button
               type="button"
               className="button button-primary action"
-              disabled={!consent}
               onClick={() => {
                 setHomeError("");
                 setView("scanner");
@@ -444,7 +441,7 @@ export default function ProteinScannerApp() {
             >
               Scan with camera
             </button>
-            <label className={`button action upload-action${consent ? "" : " is-disabled"}`} htmlFor="photo-upload">
+            <label className="button action" htmlFor="photo-upload">
               Upload photo
             </label>
             <input
@@ -452,7 +449,6 @@ export default function ProteinScannerApp() {
               className="visually-hidden"
               type="file"
               accept="image/*"
-              disabled={!consent}
               aria-label="Upload photo"
               onChange={(event) => {
                 void handleUpload(event.target.files?.[0] ?? null);
@@ -470,9 +466,7 @@ export default function ProteinScannerApp() {
               Try example
             </button>
           </div>
-          <p className="muted small">
-            Camera photos are checked as still frames, at most one at a time. This app does not store your photos.
-          </p>
+          <p className="muted small">Photos are analyzed by Meta's AI and are not kept by this app.</p>
         </section>
       )}
 
@@ -481,6 +475,7 @@ export default function ProteinScannerApp() {
           onCandidate={handleCandidate}
           onExit={() => setView("home")}
           onManual={() => openReview(emptyDraft())}
+          onUnreadable={handleUnreadable}
         />
       )}
 
@@ -488,6 +483,12 @@ export default function ProteinScannerApp() {
         <section aria-labelledby="review-heading" className="card">
           <h2 id="review-heading">Check the details</h2>
           {draft.isExample && <p className="badge">{EXAMPLE_BADGE}</p>}
+          {reviewNotice && (
+            <p role="status" className="warning-text">
+              {reviewNotice}
+            </p>
+          )}
+          {draft.name.trim() && <h3 className="review-item">{draft.name.trim()}</h3>}
           <p className="muted">
             Source:{" "}
             {draft.provenanceUrl ? (
@@ -712,7 +713,7 @@ export default function ProteinScannerApp() {
           <h2 id="results-heading">Results</h2>
           {confirmedExample && <p className="badge">{EXAMPLE_BADGE}</p>}
           <div className="metric metric-primary">
-            <p className="metric-label">Protein per {confirmed.price?.currency ?? "dollar"}</p>
+            <p className="metric-label">Protein per {confirmed.price?.currency ?? "unit of price"}</p>
             {"value" in calculation.proteinPerCurrency ? (
               <p className="metric-value">{`${formatNumber(calculation.proteinPerCurrency.value)} ${calculation.proteinPerCurrency.unit}`}</p>
             ) : (
@@ -727,6 +728,19 @@ export default function ProteinScannerApp() {
               <p className="metric-unavailable">Unavailable: {calculation.proteinPer100Kcal.unavailable}</p>
             )}
           </div>
+
+          {!confirmed.nutrition && (
+            <>
+              <p className="muted small">
+                No nutrition values are available for this item. Search by name, then check any match before using it.
+              </p>
+              <div className="action-row">
+                <button type="button" className="button" onClick={handleFindNutritionFromResults}>
+                  Find nutrition by name
+                </button>
+              </div>
+            </>
+          )}
 
           <h3>What this is based on</h3>
           <ul className="summary">

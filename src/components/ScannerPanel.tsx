@@ -3,27 +3,32 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { analyzeImage } from "../client/api";
 import type { Candidate } from "../contracts/types";
+import { describeAnalysisError } from "./analysisError";
 
 type Props = {
   onCandidate: (candidate: Candidate, previewUrl: string | null) => void;
+  onUnreadable: () => void;
   onExit: () => void;
   onManual: () => void;
 };
 
 const SAMPLE_MS = 2500;
+const UNREADABLE_AFTER = 4;
 
 /**
  * Live camera sampling. Frames are drawn to a canvas and re-encoded as JPEG
  * (which strips metadata) before anything leaves the device. At most one
- * analysis request is in flight and no frames are queued.
+ * analysis request is in flight and no frames are queued. Sampling stops as
+ * soon as anything readable comes back, or after a short run of empty reads.
  */
-export default function ScannerPanel({ onCandidate, onExit, onManual }: Props) {
+export default function ScannerPanel({ onCandidate, onUnreadable, onExit, onManual }: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const inFlightRef = useRef(false);
   const stoppedRef = useRef(false);
+  const emptyReadsRef = useRef(0);
   const [status, setStatus] = useState("Starting camera…");
   const [hasStream, setHasStream] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -69,20 +74,27 @@ export default function ScannerPanel({ onCandidate, onExit, onManual }: Props) {
         onCandidate(candidate, previewUrl);
         return;
       }
-      setStatus("No item or price found yet — keep the product and its shelf price in view, or capture again.");
+      emptyReadsRef.current += 1;
+      if (emptyReadsRef.current >= UNREADABLE_AFTER) {
+        stoppedRef.current = true;
+        stopCamera();
+        onUnreadable();
+        return;
+      }
+      setStatus("No item or price found yet — keep the product and its shelf price in view. Checking again…");
     } catch (error) {
       if (stoppedRef.current) return;
       stopSampling();
-      const message = error instanceof Error ? error.message : "Analysis failed.";
-      setStatus(`Analysis stopped: ${message} Tap “Capture now” to try again, or enter the values yourself.`);
+      setStatus(`Analysis stopped: ${describeAnalysisError(error)} Tap “Capture now” to try again, or enter the values yourself.`);
     } finally {
       inFlightRef.current = false;
       setBusy(false);
     }
-  }, [onCandidate, stopCamera, stopSampling]);
+  }, [onCandidate, onUnreadable, stopCamera, stopSampling]);
 
   useEffect(() => {
     stoppedRef.current = false;
+    emptyReadsRef.current = 0;
     let cancelled = false;
     async function start() {
       if (!navigator.mediaDevices?.getUserMedia) {

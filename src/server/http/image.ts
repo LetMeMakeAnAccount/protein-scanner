@@ -65,8 +65,7 @@ async function parseImage(request: Request): Promise<ImageInput> {
   let form: FormData;
   try { form = await new Response(new Blob([Uint8Array.from(bytes).buffer]), { headers: { "content-type": type } }).formData(); }
   catch { throw invalid(); }
-  for (const [key] of form.entries()) if (!['image', 'metaConsent'].includes(key) || form.getAll(key).length !== 1) throw invalid();
-  if (form.get("metaConsent") !== "true") throw invalid();
+  for (const [key] of form.entries()) if (key !== "image" || form.getAll(key).length !== 1) throw invalid();
   const file = form.get("image");
   if (!(file instanceof Blob) || !["image/jpeg", "image/png", "image/webp"].includes(file.type) || !file.size || file.size > MAX_IMAGE_BYTES) throw invalid();
   assertActive(request);

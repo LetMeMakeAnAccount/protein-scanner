@@ -1,5 +1,5 @@
 import React from "react";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import Home from "../../src/app/page";
 import { DIARY_KEY } from "../../src/client/diary";
@@ -44,6 +44,29 @@ function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 }
 
+function stubCamera() {
+  const stream = { getTracks: () => [{ stop: vi.fn() }] } as unknown as MediaStream;
+  const getUserMedia = vi.fn(async () => stream);
+  Object.defineProperty(navigator, "mediaDevices", { value: { getUserMedia }, configurable: true });
+  vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+  Object.defineProperty(HTMLVideoElement.prototype, "videoWidth", { configurable: true, get: () => 640 });
+  Object.defineProperty(HTMLVideoElement.prototype, "videoHeight", { configurable: true, get: () => 480 });
+  return getUserMedia;
+}
+
+/** jsdom has no canvas rendering, so stand in a context and an encoded JPEG. */
+function stubFrameCapture() {
+  vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
+    drawImage: vi.fn(),
+  } as unknown as CanvasRenderingContext2D);
+  vi.spyOn(HTMLCanvasElement.prototype, "toDataURL").mockReturnValue("data:image/jpeg;base64,preview");
+  vi.spyOn(HTMLCanvasElement.prototype, "toBlob").mockImplementation((callback) =>
+    callback(new Blob(["frame"], { type: "image/jpeg" })),
+  );
+}
+
+const emptyCandidate = { item: null, barcode: null, price: null, labelNutrition: null, uncertainties: [] };
+
 async function fillManualAndConfirm(overrides: { packageAmount?: string } = {}) {
   fireEvent.click(screen.getByRole("button", { name: /enter manually/i }));
   fireEvent.change(screen.getByLabelText(/item name/i), { target: { value: "Test food" } });
@@ -59,6 +82,7 @@ async function fillManualAndConfirm(overrides: { packageAmount?: string } = {}) 
 describe("Protein Scanner UI", () => {
   afterEach(() => {
     cleanup();
+    vi.useRealTimers();
   });
 
   beforeEach(() => {
@@ -67,18 +91,22 @@ describe("Protein Scanner UI", () => {
     vi.unstubAllGlobals();
   });
 
-  it("gates camera and upload behind one unselected consent checkbox, but not manual or example", () => {
+  it("starts camera scanning and upload immediately, with one static notice and no consent checkbox", async () => {
+    const getUserMedia = stubCamera();
     render(<Home />);
-    const checkbox = screen.getByRole("checkbox", { name: /analyze my photo with meta/i });
-    expect(checkbox).not.toBeChecked();
-    expect(screen.getByRole("button", { name: /scan with camera/i })).toBeDisabled();
-    expect(screen.getByLabelText(/upload photo/i)).toBeDisabled();
+
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(
+      screen.getByText("Photos are analyzed by Meta's AI and are not kept by this app."),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /scan with camera/i })).toBeEnabled();
+    expect(screen.getByLabelText(/upload photo/i)).toBeEnabled();
     expect(screen.getByRole("button", { name: /enter manually/i })).toBeEnabled();
     expect(screen.getByRole("button", { name: /try example/i })).toBeEnabled();
 
-    fireEvent.click(checkbox);
-    expect(screen.getByRole("button", { name: /scan with camera/i })).toBeEnabled();
-    expect(screen.getByLabelText(/upload photo/i)).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: /scan with camera/i }));
+    await waitFor(() => expect(getUserMedia).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole("heading", { name: /scan with camera/i })).toBeInTheDocument();
   });
 
   it("manual flow calculates 5 g/USD and 10 g/100 kcal for a 200 g, $4 pack at 10 g/100 g", async () => {
@@ -170,7 +198,7 @@ describe("Protein Scanner UI", () => {
     expect(screen.getByLabelText(/item name/i)).toHaveValue("Oats");
   });
 
-  it("analyzes an uploaded photo only with consent and pre-fills label nutrition as checkable", async () => {
+  it("analyzes an uploaded photo immediately with only the image in the form, pre-filling label nutrition as checkable", async () => {
     const candidate = {
       item: "Uploaded bars",
       barcode: null,
@@ -180,7 +208,7 @@ describe("Protein Scanner UI", () => {
     };
     const fetchMock = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
       const body = init?.body as FormData;
-      expect(body.get("metaConsent")).toBe("true");
+      expect(body.has("metaConsent")).toBe(false);
       expect(body.get("image")).toBeInstanceOf(Blob);
       return jsonResponse({ ok: true, data: { candidate } });
     });
@@ -189,7 +217,6 @@ describe("Protein Scanner UI", () => {
     Object.defineProperty(URL, "revokeObjectURL", { value: vi.fn(), configurable: true });
 
     render(<Home />);
-    fireEvent.click(screen.getByRole("checkbox", { name: /analyze my photo with meta/i }));
     const input = screen.getByLabelText(/upload photo/i) as HTMLInputElement;
     fireEvent.change(input, { target: { files: [new File(["fake"], "photo.jpg", { type: "image/jpeg" })] } });
 
@@ -203,9 +230,139 @@ describe("Protein Scanner UI", () => {
     const getUserMedia = vi.fn(async () => { throw new DOMException("denied", "NotAllowedError"); });
     Object.defineProperty(navigator, "mediaDevices", { value: { getUserMedia }, configurable: true });
     render(<Home />);
-    fireEvent.click(screen.getByRole("checkbox", { name: /analyze my photo with meta/i }));
     fireEvent.click(screen.getByRole("button", { name: /scan with camera/i }));
     expect(await screen.findByText(/camera permission was denied/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /enter manually instead/i })).toBeInTheDocument();
+  });
+
+  it("stops sampling on an item with no price, opens review with the name filled and price blank, and stays honest through results and diary", async () => {
+    vi.useFakeTimers();
+    stubCamera();
+    stubFrameCapture();
+    const candidate = {
+      item: "Multivitamin bottle",
+      barcode: null,
+      price: null,
+      labelNutrition: {
+        proteinG: 10,
+        energyKcal: 100,
+        basis: { amount: 100, unit: "g" },
+        source: { kind: "label", label: "Visible label", visibleText: "10 g protein per 100 g" },
+      },
+      uncertainties: [],
+    };
+    const fetchMock = vi.fn(async () => jsonResponse({ ok: true, data: { candidate } }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<Home />);
+    fireEvent.click(screen.getByRole("button", { name: /scan with camera/i }));
+    for (let tick = 0; tick < 4 && fetchMock.mock.calls.length < 1; tick += 1) {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2500);
+      });
+    }
+    vi.useRealTimers();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(screen.getByLabelText(/item name/i)).toHaveValue("Multivitamin bottle");
+    expect(screen.getByLabelText(/price amount/i)).toHaveValue(null);
+    expect(screen.queryByText(/enter an item name before confirming/i)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /confirm and see results/i }));
+    expect(
+      await screen.findByText(/Unavailable: A valid price and matching nutrition quantity are required\./),
+    ).toBeInTheDocument();
+    expect(screen.getByText("10 g/100 kcal")).toBeInTheDocument();
+    expect(screen.getByText(/price: not given/i)).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/amount to add/i), { target: { value: "100" } });
+    fireEvent.click(screen.getByRole("button", { name: /add to today's diary/i }));
+    expect(await screen.findByText(/added to today's diary/i)).toBeInTheDocument();
+  });
+
+  it("keeps the item prominent when both price and nutrition are missing, shows both unavailable reasons, and offers a name search", async () => {
+    vi.useFakeTimers();
+    stubCamera();
+    stubFrameCapture();
+    const candidate = { ...emptyCandidate, item: "Multivitamin bottle" };
+    const fetchMock = vi.fn(async (url: string | URL | Request) => {
+      const target = String(url);
+      if (target.includes("/api/scan/analyze")) return jsonResponse({ ok: true, data: { candidate } });
+      if (target.includes("/api/foods/search")) return jsonResponse({ ok: true, data: [] });
+      throw new Error(`Unexpected request: ${target}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<Home />);
+    fireEvent.click(screen.getByRole("button", { name: /scan with camera/i }));
+    for (let tick = 0; tick < 4 && fetchMock.mock.calls.length < 1; tick += 1) {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2500);
+      });
+    }
+    vi.useRealTimers();
+
+    expect(screen.getByRole("heading", { level: 3, name: "Multivitamin bottle" })).toBeInTheDocument();
+    expect(screen.getByLabelText(/item name/i)).toHaveValue("Multivitamin bottle");
+    expect(screen.getByLabelText(/price amount/i)).toHaveValue(null);
+
+    fireEvent.click(screen.getByRole("button", { name: /confirm and see results/i }));
+    expect(await screen.findByText(/item: multivitamin bottle/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Unavailable: A valid price and matching nutrition quantity are required\./),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Unavailable: Protein and positive kcal on the same basis are required\./),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /find nutrition by name/i }));
+    expect(await screen.findByText(/no open food facts match for that name/i)).toBeInTheDocument();
+    expect(
+      fetchMock.mock.calls.some(([url]) => String(url).includes("/api/foods/search?q=Multivitamin%20bottle")),
+    ).toBe(true);
+  });
+
+  it.each([
+    [403, "forbidden", "Origin not allowed", /not allowed to use photo analysis \(403\).*ALLOWED_ORIGINS/i],
+    [429, "rate_limit", "Request rate limit reached", /too many photos were scanned just now \(429\)/i],
+    [503, "unavailable", "Image analysis unavailable", /unavailable right now \(503\).*may not be configured/i],
+    [400, "invalid_input", "Invalid input", /retake it with the camera or choose a JPEG\/PNG/i],
+    [415, "unsupported_media_type", "Expected multipart image", /retake it with the camera or choose a JPEG\/PNG/i],
+  ])("shows an honest message for a %i analysis response", async (status, code, message, expected) => {
+    const fetchMock = vi.fn(async () => jsonResponse({ ok: false, error: { code, message } }, status));
+    vi.stubGlobal("fetch", fetchMock);
+    Object.defineProperty(URL, "createObjectURL", { value: vi.fn(() => "blob:preview"), configurable: true });
+    Object.defineProperty(URL, "revokeObjectURL", { value: vi.fn(), configurable: true });
+
+    render(<Home />);
+    fireEvent.change(screen.getByLabelText(/upload photo/i), {
+      target: { files: [new File(["fake"], "photo.heic", { type: "image/heic" })] },
+    });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(expected);
+    expect(screen.getByRole("button", { name: /enter manually/i })).toBeInTheDocument();
+  });
+
+  it("stops after four empty analyses and opens review with the fallback message", async () => {
+    vi.useFakeTimers();
+    stubCamera();
+    stubFrameCapture();
+    const fetchMock = vi.fn(async () => jsonResponse({ ok: true, data: { candidate: emptyCandidate } }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<Home />);
+    fireEvent.click(screen.getByRole("button", { name: /scan with camera/i }));
+    for (let tick = 0; tick < 12 && fetchMock.mock.calls.length < 4; tick += 1) {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2500);
+      });
+    }
+    vi.useRealTimers();
+
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(screen.getByRole("heading", { name: /check the details/i })).toBeInTheDocument();
+    expect(screen.getByText(/couldn't read the label\. type the item name and what you can see\./i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/item name/i)).toHaveValue("");
+    expect(screen.getByLabelText(/price amount/i)).toHaveValue(null);
   });
 });

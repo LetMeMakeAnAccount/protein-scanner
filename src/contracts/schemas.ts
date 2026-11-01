@@ -81,7 +81,6 @@ export const calculationSchema = z.object({
   proteinPer100Kcal: metricSchema,
 }).strict();
 export const imageInputSchema = z.object({ bytes: z.instanceof(Uint8Array), mediaType: text }).strict();
-export const imageConsentsSchema = z.object({ meta: z.literal(true) }).strict();
 export const analysisResultSchema = z.object({ candidate: candidateSchema }).strict();
 export const diaryEntrySchema = z.object({
   id: text, food: foodSchema, nutrition: nutritionSchema.nullable(), amount: basisSchema, date,

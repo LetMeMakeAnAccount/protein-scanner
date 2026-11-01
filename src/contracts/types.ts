@@ -48,7 +48,6 @@ export type Candidate = {
   uncertainties: string[];
 };
 export type ImageInput = { bytes: Uint8Array; mediaType: string };
-export type ImageConsents = { meta: true };
 export type AnalysisResult = { candidate: Candidate };
 export type DiaryEntry = { id: string; food: Food; nutrition: Nutrition | null; amount: Basis; date: string };
 export type ApiResponse<T> = { ok: true; data: T } | { ok: false; error: { code: string; message: string } };
