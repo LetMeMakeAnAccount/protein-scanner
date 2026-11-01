@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createProductionServices } from "../../src/server/composition";
+import { createHealthHandlers, createProductionServices } from "../../src/server/composition";
 import { calculate } from "../../src/domain/calculation";
 import { MuseClient } from "../../src/server/muse/client";
 import sharp from "sharp";
@@ -33,6 +33,51 @@ describe("transient production composition", () => {
     expect((await services.image().analyze(request({}))).status).toBe(403);
     expect((await services.image().analyze(request({ origin: "https://evil.example" }))).status).toBe(403);
     expect((await services.image().analyze(request({ origin: "https://preview-123.netlify.app" }))).status).toBe(503);
+  });
+  it("reports the same effective configuration through health without leaking the key", async () => {
+    const env: NodeJS.ProcessEnv = { NODE_ENV: "test", MODEL_ENABLED: "true", MUSE_API_KEY: "sk-live-composition-secret", MODEL_MAX_REQUESTS: "7", MUSE_API_URL: "https://models.example/v1/chat" };
+    const response = createHealthHandlers(env).health();
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+    const raw = await response.text();
+    expect(raw).not.toContain("sk-live-composition-secret");
+    expect(JSON.parse(raw)).toEqual({
+      ok: true,
+      data: {
+        model: { enabled: true, reasons: [], keyPresent: true, enabledFlag: true, cap: 7, model: "muse-spark-1.2", endpointHost: "models.example" },
+        origins: { configured: false },
+      },
+    });
+  });
+  it.each([
+    [{ MODEL_ENABLED: "TRUE" }, "MODEL_ENABLED is not true"],
+    [{ MODEL_ENABLED: undefined }, "MODEL_ENABLED is not true"],
+    [{ MUSE_API_KEY: "" }, "MUSE_API_KEY is missing"],
+    [{ MUSE_API_KEY: undefined }, "MUSE_API_KEY is missing"],
+    [{ MODEL_MAX_REQUESTS: undefined }, "MODEL_MAX_REQUESTS missing/invalid or 0"],
+    [{ MODEL_MAX_REQUESTS: "0" }, "MODEL_MAX_REQUESTS missing/invalid or 0"],
+    [{ MODEL_MAX_REQUESTS: "not-a-number" }, "MODEL_MAX_REQUESTS missing/invalid or 0"],
+    [{ MUSE_API_URL: "http://api.meta.ai/v1/chat/completions" }, "MUSE_API_URL is invalid"],
+    [{ MUSE_API_URL: "not a url" }, "MUSE_API_URL is invalid"],
+    [{ MUSE_API_URL: "https://user:pass@api.meta.ai/v1" }, "MUSE_API_URL is invalid"],
+    [{ MUSE_API_URL: "https://api.meta.ai/v1#fragment" }, "MUSE_API_URL is invalid"],
+  ] as const)("explains each failing precondition: %j", async (override, reason) => {
+    const env: NodeJS.ProcessEnv = { NODE_ENV: "test", MODEL_ENABLED: "true", MUSE_API_KEY: "key", MODEL_MAX_REQUESTS: "3", ...override };
+    const body = await createHealthHandlers(env).health().json() as { data: { model: { enabled: boolean; reasons: string[] } } };
+    expect(body.data.model.enabled).toBe(false);
+    expect(body.data.model.reasons).toEqual([reason]);
+  });
+  it("defaults an unset endpoint and model exactly as createProductionServices does", async () => {
+    const body = await createHealthHandlers({ NODE_ENV: "test", MODEL_ENABLED: "true", MUSE_API_KEY: "key", MODEL_MAX_REQUESTS: "1", MUSE_API_URL: "" }).health().json() as { data: { model: { enabled: boolean; model: string; endpointHost: string } } };
+    expect(body.data.model).toMatchObject({ enabled: true, model: "muse-spark-1.2", endpointHost: "api.meta.ai" });
+  });
+  it("does not fall back from a malformed MUSE_API_URL, matching createProductionServices", async () => {
+    const env: NodeJS.ProcessEnv = { NODE_ENV: "test", MODEL_ENABLED: "true", MUSE_API_KEY: "key", MODEL_MAX_REQUESTS: "1", MUSE_API_URL: "not a url" };
+    const body = await createHealthHandlers(env).health().json() as { data: { model: { enabled: boolean; reasons: string[]; endpointHost: string } } };
+    expect(body.data.model.enabled).toBe(false);
+    expect(body.data.model.reasons).toEqual(["MUSE_API_URL is invalid"]);
+    expect(body.data.model.endpointHost).toBe("");
+    expect(createProductionServices(env).image()).toBeTruthy();
   });
   it("shares the process cap across independently constructed services and fails closed on config changes", async () => {
     const env = { NODE_ENV: "test" as const, MUSE_API_KEY: "test-key", MODEL_ENABLED: "true", MODEL_MAX_REQUESTS: "2", ALLOWED_ORIGINS: "https://app.example" };

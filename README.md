@@ -100,6 +100,32 @@ In all flows, confirm the item, price, currency/quantity basis, and nutrition va
 - `MODEL_MAX_REQUESTS` is an in-memory, per-process request cap. Its counter resets when the process restarts and is not coordinated across processes, serverless instances, or hosts. It is an abuse-reduction measure, **not a billing guarantee** and not a global spending cap; Meta's pricing and accounting determine actual charges.
 - Keep `MODEL_MAX_REQUESTS` conservative against the $150 Meta API credit budget, and review current pricing before any live use. To stop new model calls, set `MODEL_ENABLED` to a value other than `true` and restart/reconfigure the process; requests already in flight may finish.
 
+## Troubleshooting 503
+
+If scanning returns 503, open `/api/health` on the deployed site first. It reports the effective model configuration without revealing the API key:
+
+```json
+{
+  "ok": true,
+  "data": {
+    "model": {
+      "enabled": false,
+      "reasons": ["MODEL_ENABLED is not true", "MUSE_API_KEY is missing"],
+      "keyPresent": false,
+      "enabledFlag": false,
+      "cap": 0,
+      "model": "muse-spark-1.2",
+      "endpointHost": "api.meta.ai"
+    },
+    "origins": { "configured": false }
+  }
+}
+```
+
+`reasons` lists each failing precondition: `MODEL_ENABLED` must be exactly `true`, `MUSE_API_KEY` must be present, `MODEL_MAX_REQUESTS` must be a positive integer, and `MUSE_API_URL` (if set) must be an `https:` URL. `keyPresent` only indicates whether a key exists; the key value, its length, and any prefix or hash are never returned. The endpoint is reduced to its hostname.
+
+Set or correct the environment variables in the hosting provider's dashboard (not in a committed file). Netlify applies environment-variable changes only on a new deploy, so redeploy after changing them and check `/api/health` again.
+
 ## Verification
 
 ```sh

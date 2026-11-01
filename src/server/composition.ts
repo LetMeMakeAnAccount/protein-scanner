@@ -54,6 +54,25 @@ function requestCap(value: string | undefined): number {
   const cap = Number(value);
   return Number.isSafeInteger(cap) && cap <= 1_000_000 ? cap : 0;
 }
+function hostOf(endpoint: string): string {
+  try { return new URL(endpoint).hostname; } catch { return ""; }
+}
+const defaultEndpoint = "https://api.meta.ai/v1/chat/completions";
+const defaultModel = "muse-spark-1.2";
+// Single source of truth for the model settings used by both production
+// services and health reporting, so the two cannot drift.
+function modelSettings(env: NodeJS.ProcessEnv) {
+  const key = env.MUSE_API_KEY ?? "", endpoint = env.MUSE_API_URL || defaultEndpoint, model = env.MUSE_MODEL || defaultModel;
+  const cap = requestCap(env.MODEL_MAX_REQUESTS);
+  const enabledFlag = env.MODEL_ENABLED === "true";
+  const endpointValid = validEndpoint(endpoint);
+  const reasons: string[] = [];
+  if (!enabledFlag) reasons.push("MODEL_ENABLED is not true");
+  if (!key) reasons.push("MUSE_API_KEY is missing");
+  if (cap <= 0) reasons.push("MODEL_MAX_REQUESTS missing/invalid or 0");
+  if (!endpointValid) reasons.push("MUSE_API_URL is invalid");
+  return { key, endpoint, model, cap, enabled: reasons.length === 0, enabledFlag, reasons, endpointHost: hostOf(endpoint) };
+}
 // One singleton per process/module instance. Restarts and multiple instances
 // reset/separate accounting. A cap change requires restart, never a silent reset.
 let activeQuota: MemoryQuota | undefined;
@@ -63,10 +82,21 @@ function quotaFor(enabled: boolean, cap: number): MemoryQuota {
   if (!activeQuota) { configuredCap = cap; activeQuota = new MemoryQuota({ enabled: true, globalCap: cap }); }
   return activeQuota;
 }
+export function createHealthHandlers(env: NodeJS.ProcessEnv) {
+  return {
+    // Reports only non-sensitive configuration state: never the key, its
+    // length, a prefix, or a hash; endpointHost is a hostname at most.
+    health(): Response {
+      const { enabled, reasons, enabledFlag, cap, model, endpointHost, key } = modelSettings(env);
+      return safeResponse({
+        model: { enabled, reasons, keyPresent: key !== "", enabledFlag, cap, model, endpointHost },
+        origins: { configured: allowedOrigins(env.ALLOWED_ORIGINS).length > 0 },
+      });
+    },
+  };
+}
 export function createProductionServices(env: NodeJS.ProcessEnv) {
-  const key = env.MUSE_API_KEY ?? "", endpoint = env.MUSE_API_URL || "https://api.meta.ai/v1/chat/completions", model = env.MUSE_MODEL || "muse-spark-1.2";
-  const cap = requestCap(env.MODEL_MAX_REQUESTS);
-  const enabled = env.MODEL_ENABLED === "true" && !!key && !!model && validEndpoint(endpoint) && cap > 0;
+  const { key, endpoint, model, cap, enabled } = modelSettings(env);
   const origins = allowedOrigins(env.ALLOWED_ORIGINS);
   const off = createOffClient();
   return {
