@@ -1,0 +1,72 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import sharp from "sharp";
+import { createImageHandlers } from "../../src/server/http/image";
+import { MemoryQuota } from "../../src/server/quota/memory";
+import type { ImageInput } from "../../src/contracts/types";
+import type { QuotaActionContext } from "../../src/server/quota/types";
+import * as composition from "../../src/server/composition";
+import { POST as scanRoute } from "../../src/app/api/scan/analyze/route";
+vi.mock("server-only", () => ({}));
+const origin = "https://scanner.example", candidate = { item: "Food", barcode: null, price: null, labelNutrition: null, uncertainties: [] };
+let analyze: ReturnType<typeof vi.fn>, sanitize: ReturnType<typeof vi.fn>, handlers: ReturnType<typeof createImageHandlers>;
+function request(consent?: string, bytes = "frame", headers: Record<string, string> = {}, signal?: AbortSignal, extra?: Record<string, string>): Request {
+  const form = new FormData(); if (consent !== undefined) form.set("metaConsent", consent);
+  for (const [k,v] of Object.entries(extra ?? {})) form.set(k,v);
+  form.set("image", new Blob([bytes], { type: "image/jpeg" }), "frame.jpg");
+  return new Request(`${origin}/api/scan/analyze`, { method: "POST", headers: { origin, ...headers }, body: form, signal });
+}
+beforeEach(() => {
+  analyze = vi.fn(async (_image: ImageInput, context: QuotaActionContext) => { context.assertActive(); return candidate; });
+  sanitize = vi.fn(async (image: ImageInput) => image);
+  handlers = createImageHandlers({ allowedOrigins: [origin], resolveClientIdentity: () => "peer", quota: new MemoryQuota({ enabled: true, globalCap: 5 }), muse: { analyze }, sanitize });
+});
+describe("transient image analysis", () => {
+  it("routes POST requests through the composed transient handler", async () => {
+    const spy = vi.spyOn(composition, "createProductionServices").mockReturnValue({ image: () => handlers } as unknown as ReturnType<typeof composition.createProductionServices>);
+    try { expect((await (await scanRoute(request("true"))).json()).data).toEqual({ candidate }); }
+    finally { spy.mockRestore(); }
+  });
+  it("requires only explicit Meta consent and returns the candidate without proof", async () => {
+    const response = await handlers.analyze(request("true"));
+    expect(response.status).toBe(200); expect(await response.json()).toEqual({ ok: true, data: { candidate } });
+    expect(response.headers.get("cache-control")).toBe("no-store"); expect(analyze).toHaveBeenCalledTimes(1);
+  });
+  it("rejects missing consent and legacy extra fields before processing", async () => {
+    expect((await handlers.analyze(request())).status).toBe(400);
+    expect((await handlers.analyze(request("false"))).status).toBe(400);
+    expect((await handlers.analyze(request("true", "frame", {}, undefined, { contributionConsent: "true" }))).status).toBe(400);
+    expect(analyze).not.toHaveBeenCalled(); expect(sanitize).not.toHaveBeenCalled();
+  });
+  it("rejects disallowed origin and oversized streamed body before decoding", async () => {
+    expect((await handlers.analyze(request("true", "frame", { origin: "https://evil.example" }))).status).toBe(403);
+    const stream = new ReadableStream({ start(c) { c.enqueue(new Uint8Array(5 * 1024 * 1024 + 128 * 1024)); c.close(); } });
+    const oversized = new Request(`${origin}/api/scan/analyze`, { method: "POST", headers: { origin, "content-type": "multipart/form-data; boundary=test", "content-length": "1" }, body: stream, duplex: "half" } as RequestInit);
+    expect((await handlers.analyze(oversized)).status).toBe(413); expect(sanitize).not.toHaveBeenCalled();
+  });
+  it("enforces quota before invoking the provider", async () => {
+    const deny = createImageHandlers({ allowedOrigins: [origin], resolveClientIdentity: () => "peer", quota: new MemoryQuota({ enabled: false, globalCap: 5 }), muse: { analyze }, sanitize });
+    expect((await deny.analyze(request("true"))).status).toBe(503); expect(analyze).not.toHaveBeenCalled(); expect(sanitize).not.toHaveBeenCalled();
+  });
+  it("does not trust arbitrary forwarded identity", async () => {
+    const noIdentity = createImageHandlers({ allowedOrigins: [origin], quota: new MemoryQuota({ enabled: true, globalCap: 5 }), muse: { analyze }, sanitize });
+    expect((await noIdentity.analyze(request("true", "frame", { "x-forwarded-for": "forged" }))).status).toBe(503);
+    expect(analyze).not.toHaveBeenCalled();
+  });
+  it("propagates cancellation and never leaks provider errors", async () => {
+    const controller = new AbortController();
+    analyze.mockImplementation(async (_image, ctx: QuotaActionContext) => { controller.abort(); expect(ctx.signal.aborted).toBe(true); ctx.assertActive(); });
+    const response = await handlers.analyze(request("true", "frame", {}, controller.signal));
+    expect(response.status).not.toBe(200); expect(JSON.stringify(await response.json())).not.toContain("frame");
+  });
+  it("sends sanitized metadata-free JPEG for JPEG, PNG and WebP", async () => {
+    const actual = createImageHandlers({ allowedOrigins: [origin], resolveClientIdentity: () => "peer", quota: new MemoryQuota({ enabled: true, globalCap: 5 }), muse: { analyze } });
+    for (const [format, type] of [["jpeg", "image/jpeg"], ["png", "image/png"], ["webp", "image/webp"]] as const) {
+      const input = await sharp({ create: { width: 3, height: 3, channels: 3, background: "red" } }).withMetadata({ exif: { IFD0: { Artist: "private" } } }).toFormat(format).toBuffer();
+      const form = new FormData(); form.set("metaConsent", "true"); form.set("image", new Blob([Uint8Array.from(input).buffer], { type }), "image");
+      const res = await actual.analyze(new Request(`${origin}/api/scan/analyze`, { method: "POST", headers: { origin }, body: form }));
+      expect(res.status).toBe(200);
+      const image = analyze.mock.calls.at(-1)![0] as ImageInput;
+      expect(image.mediaType).toBe("image/jpeg"); expect((await sharp(image.bytes).metadata()).exif).toBeUndefined();
+    }
+  });
+});
