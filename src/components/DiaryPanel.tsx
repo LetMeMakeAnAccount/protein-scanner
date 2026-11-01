@@ -31,8 +31,7 @@ export default function DiaryPanel({ entries, onDelete, onClearAll }: Props) {
         )}
       </div>
       <p className="muted">
-        Saved on this device only. Entries stay in this browser — clearing browser data or changing devices will lose
-        them. No prices are stored.
+        Entries stay in this browser — clearing browser data or changing devices will lose them.
       </p>
       {entries.length === 0 ? (
         <p className="muted">Nothing saved yet. Confirm a food, then add it here.</p>

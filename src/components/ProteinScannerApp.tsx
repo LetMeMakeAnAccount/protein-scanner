@@ -418,8 +418,7 @@ export default function ProteinScannerApp() {
               onChange={(event) => setConsent(event.target.checked)}
             />
             <label htmlFor="meta-consent">
-              I agree: my image will be sent to Meta for analysis and is not stored by this app. Meta&rsquo;s handling
-              of the image is under its own terms. Manual entry and the example send nothing.
+              I agree: analyze my photo with Meta's AI. Manual entry and the example send nothing.
             </label>
           </div>
           {!consent && <p className="muted">Tick the box above to turn on camera scanning and photo upload.</p>}
@@ -825,8 +824,8 @@ export default function ProteinScannerApp() {
 
       <footer className="footer">
         <p>
-          Nutrition comes from Open Food Facts, the printed label, or your entry — never guessed. Open Food Facts data
-          is community-contributed; check the package. This is a comparison aid, not diet or medical advice.
+          Nutrition comes from Open Food Facts, the printed label, or your entry — never guessed. Check the package.
+          This is a comparison aid, not diet or medical advice.
         </p>
       </footer>
     </main>

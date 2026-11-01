@@ -69,7 +69,7 @@ describe("Protein Scanner UI", () => {
 
   it("gates camera and upload behind one unselected consent checkbox, but not manual or example", () => {
     render(<Home />);
-    const checkbox = screen.getByRole("checkbox", { name: /sent to Meta for analysis and is not stored by this app/i });
+    const checkbox = screen.getByRole("checkbox", { name: /analyze my photo with meta/i });
     expect(checkbox).not.toBeChecked();
     expect(screen.getByRole("button", { name: /scan with camera/i })).toBeDisabled();
     expect(screen.getByLabelText(/upload photo/i)).toBeDisabled();
@@ -96,12 +96,12 @@ describe("Protein Scanner UI", () => {
     expect(screen.getByText("10 g/100 kcal")).toBeInTheDocument();
   });
 
-  it("adds to the diary, persists on this device only, reloads, and deletes", async () => {
+  it("adds to the diary, stays in this browser, reloads, and deletes", async () => {
     const view = render(<Home />);
     await fillManualAndConfirm();
     fireEvent.click(await screen.findByRole("button", { name: /add to today's diary/i }));
     expect(await screen.findByText(/added to today's diary/i)).toBeInTheDocument();
-    expect(screen.getByText(/saved on this device only/i)).toBeInTheDocument();
+    expect(screen.getByText(/entries stay in this browser/i)).toBeInTheDocument();
 
     const stored = JSON.parse(localStorage.getItem(DIARY_KEY) ?? "[]");
     expect(stored).toHaveLength(1);
@@ -189,7 +189,7 @@ describe("Protein Scanner UI", () => {
     Object.defineProperty(URL, "revokeObjectURL", { value: vi.fn(), configurable: true });
 
     render(<Home />);
-    fireEvent.click(screen.getByRole("checkbox", { name: /sent to meta/i }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /analyze my photo with meta/i }));
     const input = screen.getByLabelText(/upload photo/i) as HTMLInputElement;
     fireEvent.change(input, { target: { files: [new File(["fake"], "photo.jpg", { type: "image/jpeg" })] } });
 
@@ -203,7 +203,7 @@ describe("Protein Scanner UI", () => {
     const getUserMedia = vi.fn(async () => { throw new DOMException("denied", "NotAllowedError"); });
     Object.defineProperty(navigator, "mediaDevices", { value: { getUserMedia }, configurable: true });
     render(<Home />);
-    fireEvent.click(screen.getByRole("checkbox", { name: /sent to meta/i }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /analyze my photo with meta/i }));
     fireEvent.click(screen.getByRole("button", { name: /scan with camera/i }));
     expect(await screen.findByText(/camera permission was denied/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /enter manually instead/i })).toBeInTheDocument();

@@ -20,16 +20,15 @@ Where the confirmed inputs support it, the app calculates:
 
 Both metrics require compatible quantities and valid inputs. If a value is missing or incompatible, that metric is shown as unavailable rather than guessed. Barcode lookup and search use Open Food Facts (OFF); nutrition is attributed to an OFF record, a visibly read label, or user input.
 
-After confirmation, a food can be added to a device-local diary. Diary entries store the recorded food, amount, and available protein/energy values — no image and no price — and totals are only shown for entries with compatible known values.
+After confirmation, a food can be added to a device-local diary with its amount and available protein/energy values; totals are only shown for entries with compatible known values.
 
 Optional marketplace links are plain searches using the confirmed product name. They are labeled as searches.
 
 ## What it does not do
 
-- It does not store images. Image bytes are processed transiently in memory by the app.
+- Photos are analyzed in memory and never kept by the app.
 - It has no accounts or sign-in.
-- It has no shared data, shared listings, ratings, price observations, or shared database, and the diary is not synchronized.
-- It does not provide live retailer prices. Marketplace/search links only open a search; they do not display or store retailer prices or offers, and no retailer scraping or retailer API is used.
+- It does not provide live retailer prices. Marketplace/search links only open a search; they do not display retailer prices or offers, and no retailer scraping or retailer API is used.
 - It is not a diet recommendation or medical tool.
 
 ## Setup
@@ -91,8 +90,8 @@ In all flows, confirm the item, price, currency/quantity basis, and nutrition va
 
 ## Privacy
 
-- Submitted images — sampled camera frames or an uploaded photo — are sent to Meta for analysis only, after the explicit opt-in. The app itself does not store images: no image bytes, thumbnails, or derived image files are written to disk, browser persistent storage, server storage, logs, or caches. Declining or withdrawing consent prevents future image submissions; it cannot undo data already sent to Meta. Meta's processing and retention are governed by Meta's applicable terms, and this app makes no claim about Meta's retention or erasure behavior.
-- The diary is stored in `localStorage` on the user's own device/browser. It is not sent to or stored on the server. Clearing browser data or changing devices can lose the diary.
+- Submitted photos are sent to Meta for analysis only, after the explicit opt-in, and are not kept by the app. Meta's handling is under its own terms.
+- The diary lives in `localStorage` in the user's browser and never reaches the server.
 
 ## Cost and safety controls
 
