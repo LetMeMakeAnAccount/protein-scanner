@@ -129,6 +129,8 @@ describe("Protein Scanner UI", () => {
     await fillManualAndConfirm();
     fireEvent.click(await screen.findByRole("button", { name: /add to today's diary/i }));
     expect(await screen.findByText(/added to today's diary/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Diary" }));
     expect(screen.getByText(/entries stay in this browser/i)).toBeInTheDocument();
 
     const stored = JSON.parse(localStorage.getItem(DIARY_KEY) ?? "[]");
@@ -138,7 +140,8 @@ describe("Protein Scanner UI", () => {
 
     view.unmount();
     render(<Home />);
-    expect(await screen.findByText(/test food/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "Diary" }));
+    expect((await screen.findAllByText(/test food/i)).length).toBeGreaterThan(0);
     // Diary nutrition for the full 200 g pack at 10 g / 100 kcal per 100 g.
     expect(screen.getAllByText(/20 g protein/).length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText(/200 kcal/).length).toBeGreaterThanOrEqual(1);
@@ -158,7 +161,8 @@ describe("Protein Scanner UI", () => {
     };
     localStorage.setItem(DIARY_KEY, JSON.stringify([entry]));
     render(<Home />);
-    expect(await screen.findByText(/seeded food/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "Diary" }));
+    expect((await screen.findAllByText(/seeded food/i)).length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole("button", { name: /clear all/i }));
     await waitFor(() => expect(JSON.parse(localStorage.getItem(DIARY_KEY) ?? "[]")).toHaveLength(0));
   });

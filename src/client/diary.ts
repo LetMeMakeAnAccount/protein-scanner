@@ -1,4 +1,4 @@
-import type { DiaryEntry } from "../contracts/types";
+import type { Basis, DiaryEntry, Food, Nutrition } from "../contracts/types";
 import { convertBasis } from "../domain/units";
 
 export const DIARY_KEY = "protein-scanner-diary-v1";
@@ -35,12 +35,21 @@ export function saveDiary(entries: DiaryEntry[], storage: Pick<Storage, "setItem
   storage.setItem(DIARY_KEY, JSON.stringify(entries));
 }
 
+/** Protein/kcal for one serving at `amount`, or null when no supported conversion exists. */
+export function servingValues(
+  food: Food,
+  nutrition: Nutrition | null,
+  amount: Basis,
+): { proteinG: number | null; energyKcal: number | null } {
+  if (!nutrition) return { proteinG: null, energyKcal: null };
+  const { proteinG, energyKcal, basis } = nutrition;
+  return {
+    proteinG: proteinG === null ? null : convertBasis(proteinG, basis, amount, food),
+    energyKcal: energyKcal === null ? null : convertBasis(energyKcal, basis, amount, food),
+  };
+}
+
 /** Protein/kcal for the amount actually eaten, or null when no supported conversion exists. */
 export function diaryEntryValues(entry: DiaryEntry): { proteinG: number | null; energyKcal: number | null } {
-  if (!entry.nutrition) return { proteinG: null, energyKcal: null };
-  const { proteinG, energyKcal, basis } = entry.nutrition;
-  return {
-    proteinG: proteinG === null ? null : convertBasis(proteinG, basis, entry.amount, entry.food),
-    energyKcal: energyKcal === null ? null : convertBasis(energyKcal, basis, entry.amount, entry.food),
-  };
+  return servingValues(entry.food, entry.nutrition, entry.amount);
 }

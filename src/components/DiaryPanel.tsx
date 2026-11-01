@@ -1,78 +1,162 @@
-import React from "react";
+"use client";
+
+import React, { useState } from "react";
 import type { DiaryEntry } from "../contracts/types";
 import { diaryEntryValues } from "../client/diary";
+import { entryAsSavedFood, foodKey, type FoodServing, type SavedFood } from "../client/favorites";
+import { formatNumber } from "../client/format";
+import { formatDayLabel, todayISO } from "../client/history";
+import FoodShortcuts from "./FoodShortcuts";
+import GoalsProgress from "./GoalsProgress";
+import QuickAdd from "./QuickAdd";
+import type { DailyGoals } from "../client/goals";
 
-export function formatNumber(value: number): string {
-  return String(Number(value.toFixed(2)));
-}
+export { formatNumber } from "../client/format";
 
 type Props = {
   entries: DiaryEntry[];
-  onDelete: (id: string) => void;
-  onClearAll: () => void;
+  goals: DailyGoals;
+  favorites: SavedFood[];
+  onDelete: (id: string) => boolean;
+  onClearAll: () => boolean;
+  onSaveGoals: (goals: DailyGoals) => boolean;
+  onToggleFavorite: (item: FoodServing) => boolean;
+  onAddFood: (item: FoodServing) => boolean;
 };
 
-export default function DiaryPanel({ entries, onDelete, onClearAll }: Props) {
-  const values = entries.map(diaryEntryValues);
-  const anyUnknown = values.some((v) => v.proteinG === null || v.energyKcal === null);
-  const proteinTotal = values.reduce((sum, v) => sum + (v.proteinG ?? 0), 0);
-  const kcalTotal = values.reduce((sum, v) => sum + (v.energyKcal ?? 0), 0);
-  const anyProtein = values.some((v) => v.proteinG !== null);
-  const anyKcal = values.some((v) => v.energyKcal !== null);
+export default function DiaryPanel({
+  entries,
+  goals,
+  favorites,
+  onDelete,
+  onClearAll,
+  onSaveGoals,
+  onToggleFavorite,
+  onAddFood,
+}: Props) {
+  const [entryError, setEntryError] = useState("");
+  const [favoriteError, setFavoriteError] = useState("");
+  const today = todayISO();
+  const favoriteKeys = new Set(favorites.map((item) => item.key));
+
+  function handleToggleFavorite(item: FoodServing) {
+    if (onToggleFavorite(item)) {
+      setFavoriteError("");
+      return true;
+    }
+    setFavoriteError("This browser would not save that change. Your favourites may be unavailable right now.");
+    return false;
+  }
+
+  function handleDelete(id: string) {
+    if (onDelete(id)) {
+      setEntryError("");
+    } else {
+      setEntryError("This browser would not save that change. Your diary may be unavailable or full.");
+    }
+  }
+
+  function handleClearAll() {
+    if (onClearAll()) {
+      setEntryError("");
+    } else {
+      setEntryError("This browser would not save that change. Your diary may be unavailable or full.");
+    }
+  }
 
   return (
-    <section className="diary" aria-labelledby="diary-heading">
-      <div className="diary-head">
-        <h2 id="diary-heading">Today's diary</h2>
-        {entries.length > 0 && (
-          <button type="button" className="button button-quiet" onClick={onClearAll}>
-            Clear all
-          </button>
+    <>
+      <GoalsProgress entries={entries} goals={goals} onSaveGoals={onSaveGoals} />
+      <QuickAdd onAddFood={onAddFood} />
+      <FoodShortcuts
+        entries={entries}
+        favorites={favorites}
+        onAddFood={onAddFood}
+        onToggleFavorite={handleToggleFavorite}
+      />
+
+      <section className="card diary" aria-labelledby="diary-heading">
+        <div className="diary-head">
+          <h2 id="diary-heading">Diary</h2>
+          {entries.length > 0 && (
+            <button type="button" className="button button-quiet" onClick={handleClearAll}>
+              Clear all
+            </button>
+          )}
+        </div>
+        <p className="muted small">
+          Entries stay in this browser, along with favourites and goals — clearing browser data or changing devices
+          will lose them.
+        </p>
+
+        {entries.length === 0 ? (
+          <p className="muted">Nothing saved yet. Confirm a food from the Scan tab, or add one above.</p>
+        ) : (
+          <>
+            <ul className="diary-list">
+              {entries.map((entry) => {
+                const values = diaryEntryValues(entry);
+                const favorite = favoriteKeys.has(foodKey(entry.food));
+                return (
+                  <li key={entry.id} className="diary-entry">
+                    <div className="diary-entry-main">
+                      <strong>{entry.food.name}</strong>
+                      <span className="muted small">
+                        {formatDayLabel(entry.date, today)} · {formatNumber(entry.amount.amount)} {entry.amount.unit}
+                      </span>
+                      <span className="diary-values">
+                        {values.proteinG !== null && <span>{formatNumber(values.proteinG)} g protein</span>}
+                        {values.energyKcal !== null && <span>{formatNumber(values.energyKcal)} kcal</span>}
+                        {values.proteinG === null && values.energyKcal === null && (
+                          <span>Protein and energy not known</span>
+                        )}
+                        {(values.proteinG === null || values.energyKcal === null) &&
+                          !(values.proteinG === null && values.energyKcal === null) && (
+                            <span className="partial-tag">partial</span>
+                          )}
+                      </span>
+                    </div>
+                    <div className="entry-actions">
+                      <button
+                        type="button"
+                        className="star-button"
+                        aria-pressed={favorite}
+                        aria-label={`${favorite ? "Unfavourite" : "Favourite"} ${entry.food.name}`}
+                        onClick={() => handleToggleFavorite(entryAsSavedFood(entry))}
+                      >
+                        <span aria-hidden="true">{favorite ? "★" : "☆"}</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="button button-quiet"
+                        aria-label={`Delete ${entry.food.name}`}
+                        onClick={() => handleDelete(entry.id)}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+            <p className="muted small diary-count">
+              {entries.length} {entries.length === 1 ? "entry" : "entries"} saved in this browser. Open Progress for
+              per-day totals.
+            </p>
+          </>
         )}
-      </div>
-      <p className="muted">
-        Entries stay in this browser — clearing browser data or changing devices will lose them.
-      </p>
-      {entries.length === 0 ? (
-        <p className="muted">Nothing saved yet. Confirm a food, then add it here.</p>
-      ) : (
-        <>
-          <ul className="diary-list">
-            {entries.map((entry, index) => {
-              const v = values[index];
-              return (
-                <li key={entry.id} className="diary-entry">
-                  <div className="diary-entry-main">
-                    <strong>{entry.food.name}</strong>
-                    <span className="muted">
-                      {entry.date} · {formatNumber(entry.amount.amount)} {entry.amount.unit}
-                    </span>
-                    <span className="diary-values">
-                      {v.proteinG !== null && <span>{formatNumber(v.proteinG)} g protein</span>}
-                      {v.energyKcal !== null && <span>{formatNumber(v.energyKcal)} kcal</span>}
-                      {v.proteinG === null && v.energyKcal === null && <span>Protein and energy not known</span>}
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    className="button button-quiet"
-                    aria-label={`Delete ${entry.food.name}`}
-                    onClick={() => onDelete(entry.id)}
-                  >
-                    Delete
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-          <p className="diary-totals">
-            Totals{anyUnknown ? " (partial)" : ""}: {anyProtein ? `${formatNumber(proteinTotal)} g protein` : "protein not known"}
-            {" · "}
-            {anyKcal ? `${formatNumber(kcalTotal)} kcal` : "energy not known"}
-            {anyUnknown ? " — some entries are missing values, so these totals are incomplete." : ""}
+
+        {entryError && (
+          <p role="alert" className="alert">
+            {entryError}
           </p>
-        </>
-      )}
-    </section>
+        )}
+        {favoriteError && (
+          <p role="alert" className="alert">
+            {favoriteError}
+          </p>
+        )}
+      </section>
+    </>
   );
 }

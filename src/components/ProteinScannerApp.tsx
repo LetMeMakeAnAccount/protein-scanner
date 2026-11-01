@@ -3,10 +3,22 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { Basis, Candidate, ConfirmedInput, DiaryEntry, Food, Nutrition, Source } from "../contracts/types";
 import { calculate } from "../domain/calculation";
+import { EXAMPLE, EXAMPLE_BADGE } from "../client/example";
 import { analyzeImage, lookupBarcode, searchFoods, type FoodMatch } from "../client/api";
 import { loadDiary, saveDiary } from "../client/diary";
-import { EXAMPLE, EXAMPLE_BADGE } from "../client/example";
-import DiaryPanel, { formatNumber } from "./DiaryPanel";
+import {
+  loadFavorites,
+  saveFavorites,
+  toggleFavorite as toggleFavoriteRecord,
+  type FoodServing,
+  type SavedFood,
+} from "../client/favorites";
+import { formatNumber } from "../client/format";
+import { NO_GOALS, loadGoals, saveGoals, type DailyGoals } from "../client/goals";
+import { todayISO } from "../client/history";
+import DiaryPanel from "./DiaryPanel";
+import ProgressPanel from "./ProgressPanel";
+import TabNav, { type AppTab } from "./TabNav";
 import ScannerPanel from "./ScannerPanel";
 import { describeAnalysisError } from "./analysisError";
 
@@ -121,6 +133,10 @@ function parseNumber(value: string): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function newEntryId(): string {
+  return typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `entry-${Date.now()}`;
+}
+
 const RETAILERS = [
   { name: "Walmart", url: (q: string) => `https://www.walmart.com/search?q=${q}` },
   { name: "Instacart", url: (q: string) => `https://www.instacart.com/store/s?k=${q}` },
@@ -147,6 +163,7 @@ async function reencodeImage(file: File): Promise<Blob> {
 }
 
 export default function ProteinScannerApp() {
+  const [tab, setTab] = useState<AppTab>("scan");
   const [view, setView] = useState<View>("home");
   const [draft, setDraft] = useState<Draft>(emptyDraft);
   const [confirmed, setConfirmed] = useState<ConfirmedInput | null>(null);
@@ -156,6 +173,8 @@ export default function ProteinScannerApp() {
   const [homeError, setHomeError] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
   const [entries, setEntries] = useState<DiaryEntry[]>([]);
+  const [goals, setGoals] = useState<DailyGoals>({ ...NO_GOALS });
+  const [favorites, setFavorites] = useState<SavedFood[]>([]);
   const [diaryAmount, setDiaryAmount] = useState("");
   const [diaryUnit, setDiaryUnit] = useState<PhysicalUnit>("g");
   const [diaryNotice, setDiaryNotice] = useState("");
@@ -169,6 +188,8 @@ export default function ProteinScannerApp() {
 
   useEffect(() => {
     setEntries(loadDiary());
+    setGoals(loadGoals());
+    setFavorites(loadFavorites());
   }, []);
 
   useEffect(() => {
@@ -368,6 +389,32 @@ export default function ProteinScannerApp() {
     setView("results");
   }
 
+  function persistEntries(next: DiaryEntry[], failure = "This browser would not save that change."): boolean {
+    try {
+      saveDiary(next);
+      setEntries(next);
+      setDiaryError("");
+      return true;
+    } catch {
+      setDiaryError(failure);
+      return false;
+    }
+  }
+
+  function addToToday(item: FoodServing): boolean {
+    const entry: DiaryEntry = {
+      id: newEntryId(),
+      food: item.food,
+      nutrition: item.nutrition,
+      amount: item.amount,
+      date: todayISO(),
+    };
+    return persistEntries(
+      [entry, ...entries],
+      "This browser would not save the entry. Your diary may be unavailable or full.",
+    );
+  }
+
   function handleAddToDiary() {
     if (!confirmed) return;
     const amount = parseNumber(diaryAmount);
@@ -376,31 +423,31 @@ export default function ProteinScannerApp() {
       setDiaryNotice("");
       return;
     }
-    const entry: DiaryEntry = {
-      id: typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `entry-${Date.now()}`,
-      food: confirmed.food,
-      nutrition: confirmed.nutrition,
-      amount: { amount, unit: diaryUnit },
-      date: new Date().toISOString().slice(0, 10),
-    };
-    const next = [entry, ...entries];
-    try {
-      saveDiary(next);
-      setEntries(next);
-      setDiaryError("");
+    if (addToToday({ food: confirmed.food, nutrition: confirmed.nutrition, amount: { amount, unit: diaryUnit } })) {
       setDiaryNotice("Added to today's diary.");
-    } catch {
-      setDiaryError("This browser would not save the entry. Your diary may be unavailable or full.");
+    } else {
       setDiaryNotice("");
     }
   }
 
-  function persistEntries(next: DiaryEntry[]) {
+  function saveGoalSettings(next: DailyGoals): boolean {
     try {
-      saveDiary(next);
-      setEntries(next);
+      saveGoals(next);
+      setGoals(next);
+      return true;
     } catch {
-      setDiaryError("This browser would not save that change.");
+      return false;
+    }
+  }
+
+  function saveFavoriteToggle(item: FoodServing): boolean {
+    const next = toggleFavoriteRecord(favorites, item);
+    try {
+      saveFavorites(next);
+      setFavorites(next);
+      return true;
+    } catch {
+      return false;
     }
   }
 
@@ -417,6 +464,10 @@ export default function ProteinScannerApp() {
         </p>
       </header>
 
+      <TabNav active={tab} onChange={setTab} />
+
+      {tab === "scan" && (
+        <div role="tabpanel" id="panel-scan" aria-labelledby="tab-scan" className="tab-panel">
       {view === "home" && (
         <section aria-labelledby="start-heading" className="card">
           <h2 id="start-heading">Start</h2>
@@ -829,12 +880,29 @@ export default function ProteinScannerApp() {
           </div>
         </section>
       )}
+        </div>
+      )}
 
-      <DiaryPanel
-        entries={entries}
-        onDelete={(id) => persistEntries(entries.filter((entry) => entry.id !== id))}
-        onClearAll={() => persistEntries([])}
-      />
+      {tab === "diary" && (
+        <div role="tabpanel" id="panel-diary" aria-labelledby="tab-diary" className="tab-panel">
+          <DiaryPanel
+            entries={entries}
+            goals={goals}
+            favorites={favorites}
+            onDelete={(id) => persistEntries(entries.filter((entry) => entry.id !== id))}
+            onClearAll={() => persistEntries([])}
+            onSaveGoals={saveGoalSettings}
+            onToggleFavorite={saveFavoriteToggle}
+            onAddFood={addToToday}
+          />
+        </div>
+      )}
+
+      {tab === "progress" && (
+        <div role="tabpanel" id="panel-progress" aria-labelledby="tab-progress" className="tab-panel">
+          <ProgressPanel entries={entries} />
+        </div>
+      )}
 
       <footer className="footer">
         <p>
