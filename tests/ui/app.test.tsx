@@ -54,6 +54,22 @@ function stubCamera() {
   return getUserMedia;
 }
 
+/** Uploads decode through createImageBitmap before the canvas re-encode in jsdom. */
+function stubImageDecode() {
+  vi.stubGlobal(
+    "createImageBitmap",
+    vi.fn(async () => ({ width: 800, height: 600, close: vi.fn() })),
+  );
+  vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
+    drawImage: vi.fn(),
+    fillRect: vi.fn(),
+    fillStyle: "",
+  } as unknown as CanvasRenderingContext2D);
+  vi.spyOn(HTMLCanvasElement.prototype, "toBlob").mockImplementation((callback) =>
+    callback(new Blob(["encoded"], { type: "image/jpeg" })),
+  );
+}
+
 /** jsdom has no canvas rendering, so stand in a context and an encoded JPEG. */
 function stubFrameCapture() {
   vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
@@ -217,6 +233,7 @@ describe("Protein Scanner UI", () => {
       return jsonResponse({ ok: true, data: { candidate } });
     });
     vi.stubGlobal("fetch", fetchMock);
+    stubImageDecode();
     Object.defineProperty(URL, "createObjectURL", { value: vi.fn(() => "blob:preview"), configurable: true });
     Object.defineProperty(URL, "revokeObjectURL", { value: vi.fn(), configurable: true });
 
@@ -230,13 +247,15 @@ describe("Protein Scanner UI", () => {
     expect(screen.getByLabelText(/protein \(g\)/i)).toHaveValue(20);
   });
 
-  it("explains a denied camera without blocking manual entry", async () => {
+  it("explains a denied camera on the home screen without blocking manual entry", async () => {
     const getUserMedia = vi.fn(async () => { throw new DOMException("denied", "NotAllowedError"); });
     Object.defineProperty(navigator, "mediaDevices", { value: { getUserMedia }, configurable: true });
     render(<Home />);
     fireEvent.click(screen.getByRole("button", { name: /scan with camera/i }));
     expect(await screen.findByText(/camera permission was denied/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /enter manually instead/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /^start$/i })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /scan with camera/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /enter manually/i })).toBeInTheDocument();
   });
 
   it("stops sampling on an item with no price, opens review with the name filled and price blank, and stays honest through results and diary", async () => {
@@ -341,6 +360,7 @@ describe("Protein Scanner UI", () => {
   ])("shows an honest message for a %i analysis response (%s)", async (status, code, message, expected) => {
     const fetchMock = vi.fn(async () => jsonResponse({ ok: false, error: { code, message } }, status));
     vi.stubGlobal("fetch", fetchMock);
+    stubImageDecode();
     Object.defineProperty(URL, "createObjectURL", { value: vi.fn(() => "blob:preview"), configurable: true });
     Object.defineProperty(URL, "revokeObjectURL", { value: vi.fn(), configurable: true });
 

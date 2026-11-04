@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { createHealthHandlers, createProductionServices } from "../../src/server/composition";
+import { createHealthHandlers, createProductionServices, resolveClientIdentity } from "../../src/server/composition";
 import { calculate } from "../../src/domain/calculation";
+import { createImageHandlers } from "../../src/server/http/image";
 import { MuseClient } from "../../src/server/muse/client";
+import { MemoryQuota } from "../../src/server/quota/memory";
 import sharp from "sharp";
 vi.mock("server-only", () => ({}));
 describe("transient production composition", () => {
@@ -51,7 +53,7 @@ describe("transient production composition", () => {
   });
   it("enables the model from the API key alone with a safe default cap", async () => {
     const body = await createHealthHandlers({ NODE_ENV: "test", MUSE_API_KEY: "key" }).health().json() as { data: { model: { enabled: boolean; reasons: string[]; keyPresent: boolean; enabledFlag: boolean; cap: number; model: string; endpointHost: string } } };
-    expect(body.data.model).toEqual({ enabled: true, reasons: [], keyPresent: true, enabledFlag: true, cap: 200, model: "muse-spark-1.2", endpointHost: "api.meta.ai" });
+    expect(body.data.model).toEqual({ enabled: true, reasons: [], keyPresent: true, enabledFlag: true, cap: 1000, model: "muse-spark-1.2", endpointHost: "api.meta.ai" });
   });
   it("treats an empty MODEL_ENABLED as on when a key exists and honors an explicit cap", async () => {
     const body = await createHealthHandlers({ NODE_ENV: "test", MUSE_API_KEY: "key", MODEL_ENABLED: "", MODEL_MAX_REQUESTS: "5" }).health().json() as { data: { model: { enabled: boolean; reasons: string[]; keyPresent: boolean; enabledFlag: boolean; cap: number; model: string; endpointHost: string } } };
@@ -114,5 +116,60 @@ describe("transient production composition", () => {
       expect((await createProductionServices({ ...env, MODEL_MAX_REQUESTS: "3" }).image().analyze(request())).status).toBe(503);
       expect(spy).toHaveBeenCalledTimes(2);
     } finally { spy.mockRestore(); }
+  });
+});
+
+describe("client identity", () => {
+  const identify = (headers: Record<string, string>) => resolveClientIdentity(new Request("https://app.example/api/scan/analyze", { headers }));
+  it("prefers Netlify's connection header over forwarded chains", () => {
+    expect(identify({ "x-nf-client-connection-ip": "203.0.113.9", "x-forwarded-for": "198.51.100.7, 10.0.0.1" })).toBe("203.0.113.9");
+  });
+  it("uses the first forwarded entry when the Netlify header is absent", () => {
+    expect(identify({ "x-forwarded-for": " 198.51.100.7 , 10.0.0.1" })).toBe("198.51.100.7");
+  });
+  it("ignores unrelated client headers", () => {
+    expect(identify({ "x-real-ip": "203.0.113.9", forwarded: "for=203.0.113.9" })).toBe("shared");
+  });
+  it("falls back to one shared bucket for malformed values", () => {
+    const malformed: Record<string, string>[] = [
+      {},
+      { "x-nf-client-connection-ip": "" },
+      { "x-nf-client-connection-ip": "203.0.113.9, 198.51.100.7" },
+      { "x-nf-client-connection-ip": "203.0.113.9 198.51.100.7" },
+      { "x-nf-client-connection-ip": "x".repeat(65) },
+      { "x-forwarded-for": ", 198.51.100.7" },
+      { "x-forwarded-for": "bad value, 198.51.100.7" },
+    ];
+    for (const headers of malformed) expect(identify(headers)).toBe("shared");
+  });
+  it("falls through to a valid forwarded entry when Netlify's value is malformed", () => {
+    expect(identify({ "x-nf-client-connection-ip": "bad value", "x-forwarded-for": "198.51.100.7" })).toBe("198.51.100.7");
+  });
+});
+
+describe("per-client model quota", () => {
+  const candidate = { item: null, barcode: null, price: null, labelNutrition: null, uncertainties: [] };
+  const scan = (headers: Record<string, string>) => {
+    const form = new FormData();
+    form.set("image", new Blob(["frame"], { type: "image/jpeg" }), "frame.jpg");
+    return new Request("https://app.example/api/scan/analyze", { method: "POST", headers: { origin: "https://app.example", ...headers }, body: form });
+  };
+  it("keeps different Netlify clients in separate windows", async () => {
+    const analyze = vi.fn(async () => candidate);
+    const handlers = createImageHandlers({
+      allowedOrigins: [],
+      resolveClientIdentity,
+      quota: new MemoryQuota({ enabled: true, globalCap: 100 }),
+      muse: { analyze },
+      sanitize: async (image) => image,
+    });
+    const firstClient = { "x-nf-client-connection-ip": "203.0.113.10" };
+    const secondClient = { "x-nf-client-connection-ip": "203.0.113.11" };
+    for (let i = 0; i < 10; i++) expect((await handlers.analyze(scan(firstClient))).status).toBe(200);
+    const denied = await handlers.analyze(scan(firstClient));
+    expect(denied.status).toBe(429);
+    expect(await denied.json()).toEqual({ ok: false, error: { code: "rate_limit", message: "Request rate limit reached" } });
+    expect((await handlers.analyze(scan(secondClient))).status).toBe(200);
+    expect(analyze).toHaveBeenCalledTimes(11);
   });
 });

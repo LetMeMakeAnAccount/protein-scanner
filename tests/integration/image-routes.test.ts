@@ -102,6 +102,21 @@ describe("transient image analysis", () => {
     const deny = createImageHandlers({ allowedOrigins: [origin], resolveClientIdentity: () => "peer", quota: new MemoryQuota({ enabled: false, globalCap: 5 }), muse: { analyze }, sanitize });
     expect((await deny.analyze(request())).status).toBe(503); expect(analyze).not.toHaveBeenCalled(); expect(sanitize).not.toHaveBeenCalled();
   });
+  it("returns 429 with a distinct code when the concurrency cap is reached", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    let started!: () => void;
+    const entered = new Promise<void>((resolve) => { started = resolve; });
+    analyze.mockImplementationOnce(async () => { started(); await gate; return candidate; });
+    const limited = createImageHandlers({ allowedOrigins: [origin], resolveClientIdentity: () => "peer", quota: new MemoryQuota({ enabled: true, globalCap: 5, maxConcurrency: 1, timeoutMs: 5000 }), muse: { analyze }, sanitize });
+    const first = limited.analyze(request());
+    await entered;
+    const denied = await limited.analyze(request());
+    expect(denied.status).toBe(429);
+    expect(await denied.json()).toEqual({ ok: false, error: { code: "concurrency_limit", message: "Too many scans are in progress; retry shortly" } });
+    release();
+    expect((await first).status).toBe(200);
+  });
   it("does not trust arbitrary forwarded identity", async () => {
     const noIdentity = createImageHandlers({ allowedOrigins: [origin], quota: new MemoryQuota({ enabled: true, globalCap: 5 }), muse: { analyze }, sanitize });
     expect((await noIdentity.analyze(request("frame", { "x-forwarded-for": "forged" }))).status).toBe(503);

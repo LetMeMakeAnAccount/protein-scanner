@@ -6,6 +6,8 @@ import type { Candidate } from "../contracts/types";
 import { describeAnalysisError } from "./analysisError";
 
 type Props = {
+  /** Stream obtained by the tap that opened this view, so iOS keeps the user gesture. */
+  stream: MediaStream;
   onCandidate: (candidate: Candidate, previewUrl: string | null) => void;
   onUnreadable: () => void;
   onExit: () => void;
@@ -20,8 +22,12 @@ const UNREADABLE_AFTER = 4;
  * (which strips metadata) before anything leaves the device. At most one
  * analysis request is in flight and no frames are queued. Sampling stops as
  * soon as anything readable comes back, or after a short run of empty reads.
+ *
+ * The camera stream is owned by the parent, which requested it inside the
+ * user's tap. This panel never calls getUserMedia, so no permission prompt
+ * depends on an effect. Tracks are stopped by the parent when scanning ends.
  */
-export default function ScannerPanel({ onCandidate, onUnreadable, onExit, onManual }: Props) {
+export default function ScannerPanel({ stream, onCandidate, onUnreadable, onExit, onManual }: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -30,7 +36,6 @@ export default function ScannerPanel({ onCandidate, onUnreadable, onExit, onManu
   const stoppedRef = useRef(false);
   const emptyReadsRef = useRef(0);
   const [status, setStatus] = useState("Starting camera…");
-  const [hasStream, setHasStream] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const stopSampling = useCallback(() => {
@@ -39,12 +44,6 @@ export default function ScannerPanel({ onCandidate, onUnreadable, onExit, onManu
       timerRef.current = null;
     }
   }, []);
-
-  const stopCamera = useCallback(() => {
-    stopSampling();
-    streamRef.current?.getTracks().forEach((track) => track.stop());
-    streamRef.current = null;
-  }, [stopSampling]);
 
   const sample = useCallback(async () => {
     const video = videoRef.current;
@@ -70,14 +69,14 @@ export default function ScannerPanel({ onCandidate, onUnreadable, onExit, onManu
       if (stoppedRef.current) return;
       if (candidate.item || candidate.price) {
         stoppedRef.current = true;
-        stopCamera();
+        stopSampling();
         onCandidate(candidate, previewUrl);
         return;
       }
       emptyReadsRef.current += 1;
       if (emptyReadsRef.current >= UNREADABLE_AFTER) {
         stoppedRef.current = true;
-        stopCamera();
+        stopSampling();
         onUnreadable();
         return;
       }
@@ -90,55 +89,27 @@ export default function ScannerPanel({ onCandidate, onUnreadable, onExit, onManu
       inFlightRef.current = false;
       setBusy(false);
     }
-  }, [onCandidate, onUnreadable, stopCamera, stopSampling]);
+  }, [onCandidate, onUnreadable, stopSampling]);
 
   useEffect(() => {
     stoppedRef.current = false;
     emptyReadsRef.current = 0;
-    let cancelled = false;
-    async function start() {
-      if (!navigator.mediaDevices?.getUserMedia) {
-        setStatus(
-          window.isSecureContext === false
-            ? "Camera needs a secure connection (HTTPS). Open this page over HTTPS, upload a photo, or enter values manually."
-            : "No camera is available on this device. You can upload a photo or enter values manually.",
-        );
-        return;
-      }
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } } });
-        if (cancelled) {
-          stream.getTracks().forEach((track) => track.stop());
-          return;
-        }
-        streamRef.current = stream;
-        setHasStream(true);
-        const video = videoRef.current;
-        if (video) {
-          video.srcObject = stream;
-          await video.play().catch(() => undefined);
-        }
-        setStatus("Point the camera at the product and its shelf price. Photos are checked automatically.");
-        timerRef.current = setInterval(() => void sample(), SAMPLE_MS);
-      } catch (error) {
-        if (cancelled) return;
-        const name = error instanceof DOMException ? error.name : "";
-        if (name === "NotAllowedError" || name === "SecurityError") {
-          setStatus("Camera permission was denied. You can upload a photo or enter values manually instead.");
-        } else if (name === "NotFoundError" || name === "OverconstrainedError") {
-          setStatus("No camera was found on this device. You can upload a photo or enter values manually instead.");
-        } else {
-          setStatus("The camera could not be started. You can upload a photo or enter values manually instead.");
-        }
-      }
+    streamRef.current = stream;
+    const video = videoRef.current;
+    if (video) {
+      video.srcObject = stream;
+      void video.play().catch(() => undefined);
     }
-    void start();
+    setStatus("Point the camera at the product and its shelf price. Photos are checked automatically.");
+    timerRef.current = setInterval(() => void sample(), SAMPLE_MS);
     return () => {
-      cancelled = true;
       stoppedRef.current = true;
-      stopCamera();
+      stopSampling();
+      streamRef.current = null;
+      if (video) video.srcObject = null;
+      // The stream belongs to the parent; it stops the tracks when scanning ends.
     };
-  }, [sample, stopCamera]);
+  }, [stream, sample, stopSampling]);
 
   return (
     <section aria-labelledby="scanner-heading" className="scanner">
@@ -149,7 +120,7 @@ export default function ScannerPanel({ onCandidate, onUnreadable, onExit, onManu
         {status}
       </p>
       <div className="action-row">
-        <button type="button" className="button button-primary" onClick={() => void sample()} disabled={!hasStream || busy}>
+        <button type="button" className="button button-primary" onClick={() => void sample()} disabled={busy}>
           {busy ? "Checking photo…" : "Capture now"}
         </button>
         <button
@@ -157,7 +128,7 @@ export default function ScannerPanel({ onCandidate, onUnreadable, onExit, onManu
           className="button"
           onClick={() => {
             stoppedRef.current = true;
-            stopCamera();
+            stopSampling();
             onExit();
           }}
         >
@@ -168,7 +139,7 @@ export default function ScannerPanel({ onCandidate, onUnreadable, onExit, onManu
           className="button button-quiet"
           onClick={() => {
             stoppedRef.current = true;
-            stopCamera();
+            stopSampling();
             onManual();
           }}
         >

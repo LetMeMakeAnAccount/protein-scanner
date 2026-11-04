@@ -36,4 +36,15 @@ describe("single-process quota", () => {
     finish(); await task;
     expect((await quota.admit(input("other"))).allowed).toBe(true);
   });
+  it("admits four concurrent leases by default and denies the fifth until one releases", async () => {
+    const quota = new MemoryQuota({ enabled: true, globalCap: 10 });
+    const decisions = await Promise.all(Array.from({ length: 5 }, (_, index) => quota.admit(input(`client-${index}`))));
+    expect(decisions.filter((decision) => decision.allowed)).toHaveLength(4);
+    expect(decisions[4]).toEqual({ allowed: false, reason: "concurrency" });
+    const leases = decisions.flatMap((decision) => decision.allowed && decision.leaseId ? [decision.leaseId] : []);
+    await quota.release(leases[0]);
+    const next = await quota.admit(input("client-late"));
+    expect(next.allowed).toBe(true);
+    await Promise.all([...leases.slice(1), next.leaseId!].map((lease) => quota.release(lease)));
+  });
 });

@@ -16,6 +16,7 @@ import {
 import { formatNumber } from "../client/format";
 import { NO_GOALS, loadGoals, saveGoals, type DailyGoals } from "../client/goals";
 import { todayISO } from "../client/history";
+import { prepareImageForUpload, UnsupportedPhotoError } from "../client/image";
 import DiaryPanel from "./DiaryPanel";
 import ProgressPanel from "./ProgressPanel";
 import TabNav, { type AppTab } from "./TabNav";
@@ -143,23 +144,18 @@ const RETAILERS = [
   { name: "Target", url: (q: string) => `https://www.target.com/s?searchTerm=${q}` },
 ];
 
-/** Re-encode through a canvas where the browser supports it, so photo metadata is not sent. Falls back to the chosen file. */
-async function reencodeImage(file: File): Promise<Blob> {
-  if (typeof createImageBitmap !== "function") return file;
-  try {
-    const bitmap = await createImageBitmap(file);
-    const canvas = document.createElement("canvas");
-    canvas.width = bitmap.width;
-    canvas.height = bitmap.height;
-    const context = canvas.getContext("2d");
-    if (!context) return file;
-    context.drawImage(bitmap, 0, 0);
-    bitmap.close();
-    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.9));
-    return blob ?? file;
-  } catch {
-    return file;
+const CAMERA_CONSTRAINTS: MediaStreamConstraints = { video: { facingMode: { ideal: "environment" } } };
+
+/** Keeps the camera errors the scanner has always shown, worded for the home screen. */
+function cameraErrorMessage(error: unknown): string {
+  const name = error instanceof DOMException ? error.name : "";
+  if (name === "NotAllowedError" || name === "SecurityError") {
+    return "Camera permission was denied. You can upload a photo or enter values manually instead.";
   }
+  if (name === "NotFoundError" || name === "OverconstrainedError") {
+    return "No camera was found on this device. You can upload a photo or enter values manually instead.";
+  }
+  return "The camera could not be started. You can upload a photo or enter values manually instead.";
 }
 
 export default function ProteinScannerApp() {
@@ -172,6 +168,8 @@ export default function ProteinScannerApp() {
   const [reviewNotice, setReviewNotice] = useState("");
   const [homeError, setHomeError] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
+  const [startingCamera, setStartingCamera] = useState(false);
+  const [scannerStream, setScannerStream] = useState<MediaStream | null>(null);
   const [entries, setEntries] = useState<DiaryEntry[]>([]);
   const [goals, setGoals] = useState<DailyGoals>({ ...NO_GOALS });
   const [favorites, setFavorites] = useState<SavedFood[]>([]);
@@ -185,6 +183,8 @@ export default function ProteinScannerApp() {
   const [offSelected, setOffSelected] = useState(false);
   const offRequestRef = useRef(0);
   const previewObjectUrlRef = useRef<string | null>(null);
+  const scannerStreamRef = useRef<MediaStream | null>(null);
+  const cameraRequestRef = useRef(0);
 
   useEffect(() => {
     setEntries(loadDiary());
@@ -198,9 +198,69 @@ export default function ProteinScannerApp() {
     };
   }, []);
 
+  useEffect(() => {
+    return () => {
+      cameraRequestRef.current += 1;
+      scannerStreamRef.current?.getTracks().forEach((track) => track.stop());
+      scannerStreamRef.current = null;
+    };
+  }, []);
+
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) => {
     setDraft((current) => ({ ...current, [key]: value }));
   };
+
+  const stopScannerStream = useCallback(() => {
+    const stream = scannerStreamRef.current;
+    scannerStreamRef.current = null;
+    stream?.getTracks().forEach((track) => track.stop());
+    setScannerStream(null);
+  }, []);
+
+  /** Requests the camera inside the tap, so iOS keeps the user gesture that allows it. */
+  const handleStartCamera = useCallback(async () => {
+    setHomeError("");
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setHomeError(
+        window.isSecureContext === false
+          ? "Camera needs a secure connection (HTTPS). Open this page over HTTPS, upload a photo, or enter values manually."
+          : "No camera is available on this device. You can upload a photo or enter values manually.",
+      );
+      return;
+    }
+    const requestId = ++cameraRequestRef.current;
+    setStartingCamera(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia(CAMERA_CONSTRAINTS);
+      if (cameraRequestRef.current !== requestId) {
+        // The user moved on while the permission prompt was open.
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+      if (scannerStreamRef.current) {
+        scannerStreamRef.current.getTracks().forEach((track) => track.stop());
+      }
+      scannerStreamRef.current = stream;
+      setScannerStream(stream);
+      setView("scanner");
+    } catch (error) {
+      if (cameraRequestRef.current !== requestId) return;
+      setHomeError(cameraErrorMessage(error));
+    } finally {
+      if (cameraRequestRef.current === requestId) setStartingCamera(false);
+    }
+  }, []);
+
+  function handleTabChange(next: AppTab) {
+    if (next !== "scan") {
+      // Abandon a pending permission request and release the camera if the scanner is open.
+      cameraRequestRef.current += 1;
+      setStartingCamera(false);
+      if (scannerStreamRef.current) stopScannerStream();
+      if (view === "scanner") setView("home");
+    }
+    setTab(next);
+  }
 
   const runBarcodeLookup = useCallback(async (barcode: string) => {
     const requestId = ++offRequestRef.current;
@@ -223,6 +283,10 @@ export default function ProteinScannerApp() {
 
   const openReview = useCallback(
     (next: Draft, notice = "") => {
+      // Opening review leaves the home screen, so drop any camera request still in flight.
+      cameraRequestRef.current += 1;
+      setStartingCamera(false);
+      stopScannerStream();
       setDraft(next);
       setReviewNotice(notice);
       setOffMatches([]);
@@ -234,33 +298,55 @@ export default function ProteinScannerApp() {
       const barcode = next.barcode.trim();
       if (/^\d{4,24}$/.test(barcode)) void runBarcodeLookup(barcode);
     },
-    [runBarcodeLookup],
+    [runBarcodeLookup, stopScannerStream],
   );
 
   const handleCandidate = useCallback(
     (candidate: Candidate, previewUrl: string | null) => {
+      stopScannerStream();
       openReview(candidateToDraft(candidate, previewUrl));
     },
-    [openReview ],
+    [openReview, stopScannerStream],
   );
 
   const handleUnreadable = useCallback(() => {
+    stopScannerStream();
     openReview(emptyDraft(), "Couldn't read the label. Type the item name and what you can see.");
-  }, [openReview]);
+  }, [openReview, stopScannerStream]);
+
+  const handleExitScanner = useCallback(() => {
+    stopScannerStream();
+    setView("home");
+  }, [stopScannerStream]);
+
+  const handleManualFromScanner = useCallback(() => {
+    stopScannerStream();
+    openReview(emptyDraft());
+  }, [openReview, stopScannerStream]);
 
   async function handleUpload(file: File | null) {
     if (!file) return;
     setHomeError("");
     setAnalyzing(true);
-    const previewUrl = URL.createObjectURL(file);
-    if (previewObjectUrlRef.current) URL.revokeObjectURL(previewObjectUrlRef.current);
-    previewObjectUrlRef.current = previewUrl;
+    let previewUrl: string | null = null;
     try {
-      const image = await reencodeImage(file);
+      previewUrl = URL.createObjectURL(file);
+      if (previewObjectUrlRef.current) URL.revokeObjectURL(previewObjectUrlRef.current);
+      previewObjectUrlRef.current = previewUrl;
+      const image = await prepareImageForUpload(file);
       const { candidate } = await analyzeImage(image);
       openReview(candidateToDraft(candidate, previewUrl));
     } catch (error) {
-      setHomeError(`Photo analysis failed: ${describeAnalysisError(error)} You can enter the values manually below.`);
+      // Nothing was sent if the photo could not be decoded and re-encoded.
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+        if (previewObjectUrlRef.current === previewUrl) previewObjectUrlRef.current = null;
+      }
+      setHomeError(
+        error instanceof UnsupportedPhotoError
+          ? error.message
+          : `Photo analysis failed: ${describeAnalysisError(error)} You can enter the values manually below.`,
+      );
     } finally {
       setAnalyzing(false);
     }
@@ -464,7 +550,7 @@ export default function ProteinScannerApp() {
         </p>
       </header>
 
-      <TabNav active={tab} onChange={setTab} />
+      <TabNav active={tab} onChange={handleTabChange} />
 
       {tab === "scan" && (
         <div role="tabpanel" id="panel-scan" aria-labelledby="tab-scan" className="tab-panel">
@@ -481,14 +567,17 @@ export default function ProteinScannerApp() {
               Sending photo for analysis…
             </p>
           )}
+          {startingCamera && (
+            <p role="status" aria-live="polite" className="muted">
+              Starting camera…
+            </p>
+          )}
           <div className="actions">
             <button
               type="button"
               className="button button-primary action"
-              onClick={() => {
-                setHomeError("");
-                setView("scanner");
-              }}
+              onClick={() => void handleStartCamera()}
+              disabled={startingCamera}
             >
               Scan with camera
             </button>
@@ -521,11 +610,12 @@ export default function ProteinScannerApp() {
         </section>
       )}
 
-      {view === "scanner" && (
+      {view === "scanner" && scannerStream && (
         <ScannerPanel
+          stream={scannerStream}
           onCandidate={handleCandidate}
-          onExit={() => setView("home")}
-          onManual={() => openReview(emptyDraft())}
+          onExit={handleExitScanner}
+          onManual={handleManualFromScanner}
           onUnreadable={handleUnreadable}
         />
       )}

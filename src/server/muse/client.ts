@@ -47,7 +47,10 @@ export type ModelFailureKind = "auth" | "billing" | "forbidden" | "model_missing
 
 /** Typed provider failure. It never carries provider text, status detail or credentials. */
 export class ModelRequestError extends Error {
-  constructor(readonly kind: ModelFailureKind) { super("Model request failed"); this.name = "ModelRequestError"; }
+  constructor(readonly kind: ModelFailureKind) {
+    super("Model request failed");
+    this.name = "ModelRequestError";
+  }
 }
 
 const providerFailures = new Map<number, ModelFailureKind>([
@@ -63,26 +66,136 @@ function failureForStatus(status: number): ModelFailureKind | null {
   return null;
 }
 
+const MAX_RESPONSE_BYTES = 131_072;
+
+function isHttpsEndpoint(value: string): boolean {
+  try {
+    return new URL(value).protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function readCompletion(bytes: Uint8Array): string {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(new TextDecoder().decode(bytes));
+  } catch {
+    throw new Error("invalid response");
+  }
+
+  const choices = (parsed as { choices?: unknown })?.choices;
+  if (!Array.isArray(choices) || choices.length !== 1) {
+    throw new Error("invalid response");
+  }
+
+  const choice = choices[0] as
+    | {
+        finish_reason?: unknown;
+        message?: { refusal?: unknown; content?: unknown };
+      }
+    | null
+    | undefined;
+  if (!choice || typeof choice !== "object") {
+    throw new Error("invalid response");
+  }
+  // Output hit max_completion_tokens (often hidden reasoning): a complete reply is not recoverable.
+  if (choice.finish_reason === "length") {
+    throw new ModelRequestError("truncated");
+  }
+  if (choice.finish_reason !== "stop") throw new Error("invalid response");
+  if (choice.message?.refusal != null) throw new Error("invalid response");
+  if (typeof choice.message?.content !== "string") {
+    throw new Error("invalid response");
+  }
+  return choice.message.content;
+}
+
+async function readResponseBytes(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  controller: AbortController,
+): Promise<Uint8Array> {
+  const cancelReader = () => {
+    void reader.cancel().catch(() => {});
+  };
+  controller.signal.addEventListener("abort", cancelReader, { once: true });
+  if (controller.signal.aborted) cancelReader();
+
+  const chunks: Uint8Array[] = [];
+  let length = 0;
+  try {
+    while (true) {
+      const part = await reader.read();
+      if (part.done) break;
+      length += part.value.length;
+      if (length > MAX_RESPONSE_BYTES) {
+        controller.abort();
+        throw new Error("response too large");
+      }
+      chunks.push(part.value);
+    }
+  } finally {
+    controller.signal.removeEventListener("abort", cancelReader);
+    reader.releaseLock();
+  }
+  if (controller.signal.aborted) throw new Error("aborted");
+
+  const bytes = new Uint8Array(length);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return bytes;
+}
+
 export class MuseClient {
   constructor(private readonly options: Options = {}) {}
 
   async analyze(image: ImageInput, context?: QuotaActionContext): Promise<Candidate> {
-    if (!this.options.enabled || context?.signal.aborted) throw new Error("Model unavailable");
+    if (!this.options.enabled || context?.signal.aborted) {
+      throw new Error("Model unavailable");
+    }
     const apiKey = this.options.apiKey ?? process.env.MUSE_API_KEY;
-    const endpoint = this.options.endpoint ?? process.env.MUSE_API_URL ?? "https://api.meta.ai/v1/chat/completions";
+    const endpoint =
+      this.options.endpoint ??
+      process.env.MUSE_API_URL ??
+      "https://api.meta.ai/v1/chat/completions";
     const model = this.options.model ?? process.env.MUSE_MODEL ?? "muse-spark-1.2";
-    if (!apiKey || !model || !image || image.mediaType !== "image/jpeg" || !(image.bytes instanceof Uint8Array) || image.bytes.length === 0 || image.bytes.length > 5 * 1024 * 1024) throw new Error("Model unavailable");
-    try { if (new URL(endpoint).protocol !== "https:") throw new Error(); } catch { throw new Error("Model unavailable"); }
+
+    if (!apiKey || !model) throw new Error("Model unavailable");
+    if (
+      !image ||
+      image.mediaType !== "image/jpeg" ||
+      !(image.bytes instanceof Uint8Array) ||
+      image.bytes.length === 0 ||
+      image.bytes.length > 5 * 1024 * 1024
+    ) {
+      throw new Error("Model unavailable");
+    }
+    if (!isHttpsEndpoint(endpoint)) throw new Error("Model unavailable");
+
     const controller = new AbortController();
     let callerAborted = false;
-    const externalAbort = () => { callerAborted = true; controller.abort(); };
+    const externalAbort = () => {
+      callerAborted = true;
+      controller.abort();
+    };
     const aborted = new Promise<never>((_, reject) => {
-      controller.signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
+      controller.signal.addEventListener(
+        "abort",
+        () => reject(new Error("aborted")),
+        { once: true },
+      );
     });
     context?.signal.addEventListener("abort", externalAbort, { once: true });
     if (context?.signal.aborted) externalAbort();
+
     let timedOut = false;
-    const timer = setTimeout(() => { timedOut = true; controller.abort(); }, this.options.timeoutMs ?? 9000);
+    const timer = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, this.options.timeoutMs ?? 9000);
     let content: string;
     try {
       const request = (async () => {
@@ -94,11 +207,25 @@ export class MuseClient {
           ],
           response_format: { type: "json_schema", json_schema: { name: "shelf_read", strict: true, schema } },
         };
-        const init = { method: "POST", headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" }, body: JSON.stringify(body), signal: controller.signal };
+        const init = {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(body),
+          signal: controller.signal,
+        };
         if (controller.signal.aborted) throw new Error("aborted");
         context?.assertActive();
-        if (controller.signal.aborted || context?.signal.aborted) throw new Error("aborted");
-        const response = await (this.options.fetch ?? globalThis.fetch)(endpoint, init);
+        if (controller.signal.aborted || context?.signal.aborted) {
+          throw new Error("aborted");
+        }
+
+        const response = await (this.options.fetch ?? globalThis.fetch)(
+          endpoint,
+          init,
+        );
         if (controller.signal.aborted) {
           if (response.body) void response.body.cancel().catch(() => {});
           throw new Error("aborted");
@@ -109,38 +236,12 @@ export class MuseClient {
           if (kind) throw new ModelRequestError(kind);
           throw new Error("provider error");
         }
-        const reader = response.body.getReader();
-        const cancelReader = () => { void reader.cancel().catch(() => {}); };
-        controller.signal.addEventListener("abort", cancelReader, { once: true });
-        if (controller.signal.aborted) cancelReader();
-        const chunks: Uint8Array[] = [];
-        let length = 0;
-        try {
-          while (true) {
-            const part = await reader.read();
-            if (part.done) break;
-            length += part.value.length;
-            if (length > 131072) { controller.abort(); throw new Error("response too large"); }
-            chunks.push(part.value);
-          }
-        } finally {
-          controller.signal.removeEventListener("abort", cancelReader);
-          reader.releaseLock();
-        }
-        if (controller.signal.aborted) throw new Error("aborted");
-        const bytes = new Uint8Array(length);
-        let offset = 0;
-        for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
-        let parsed: unknown;
-        try { parsed = JSON.parse(new TextDecoder().decode(bytes)); } catch { throw new Error("invalid response"); }
-        const choices = (parsed as { choices?: unknown })?.choices;
-        if (!Array.isArray(choices) || choices.length !== 1) throw new Error("invalid response");
-        const choice = choices[0] as { finish_reason?: unknown; message?: { refusal?: unknown; content?: unknown } } | null | undefined;
-        if (!choice || typeof choice !== "object") throw new Error("invalid response");
-        // Output hit max_completion_tokens (often hidden reasoning): a complete reply is not recoverable.
-        if (choice.finish_reason === "length") throw new ModelRequestError("truncated");
-        if (choice.finish_reason !== "stop" || choice.message?.refusal != null || typeof choice.message?.content !== "string") throw new Error("invalid response");
-        return choice.message.content;
+
+        const bytes = await readResponseBytes(
+          response.body.getReader(),
+          controller,
+        );
+        return readCompletion(bytes);
       })();
       content = await Promise.race([request, aborted]);
     } catch (error) {

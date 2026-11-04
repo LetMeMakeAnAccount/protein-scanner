@@ -16,9 +16,23 @@ export type ImageHandlerDependencies = {
   muse: { analyze(image: ImageInput, context: QuotaActionContext): Promise<Candidate> };
   sanitize?: (image: ImageInput) => Promise<ImageInput>;
 };
-class RouteError extends Error { constructor(readonly status: number, readonly code: string, message: string) { super(message); } }
+class RouteError extends Error {
+  constructor(
+    readonly status: number,
+    readonly code: string,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
 const invalid = () => new RouteError(400, "invalid_input", "Invalid input");
-const unavailable = () => new RouteError(503, "unavailable", "Image analysis unavailable; retry or use manual entry");
+const unavailable = () =>
+  new RouteError(
+    503,
+    "unavailable",
+    "Image analysis unavailable; retry or use manual entry",
+  );
 const cancelled = () => new RouteError(400, "cancelled", "Request cancelled");
 const providerFailures: Record<ModelFailureKind, { code: string; message: string }> = {
   auth: { code: "ai_auth_failed", message: "The AI provider rejected the API key" },
@@ -42,10 +56,19 @@ function classify(error: unknown): RouteError {
 }
 function errorResponse(error: unknown): Response {
   const failure = classify(error);
-  return Response.json({ ok: false, error: { code: failure.code, message: failure.message } }, { status: failure.status, headers: { "Cache-Control": "no-store" } });
+  return Response.json(
+    { ok: false, error: { code: failure.code, message: failure.message } },
+    { status: failure.status, headers: { "Cache-Control": "no-store" } },
+  );
 }
-export function imageUnavailableResponse(): Response { return errorResponse(unavailable()); }
-function assertActive(request: Request) { if (request.signal.aborted) throw cancelled(); }
+
+export function imageUnavailableResponse(): Response {
+  return errorResponse(unavailable());
+}
+
+function assertActive(request: Request) {
+  if (request.signal.aborted) throw cancelled();
+}
 const LOOPBACK_HOSTNAMES = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
 // One host[:port], never a comma list, whitespace, path, or userinfo.
 const HOST_HEADER = /^(?:[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?|\[[0-9a-f:.]+\])(?::\d{1,5})?$/i;
@@ -53,21 +76,50 @@ function canonicalOrigin(value: string, exact = false): string | null {
   try {
     const url = new URL(value);
     if (url.protocol !== "http:" && url.protocol !== "https:") return null;
-    return !exact || url.origin === value ? url.origin : null;
-  } catch { return null; }
+    if (exact && url.origin !== value) return null;
+    return url.origin;
+  } catch {
+    return null;
+  }
 }
+
 function protocolFor(host: string, forwarded: string | null): string | null {
-  if (forwarded !== null) return forwarded === "http" || forwarded === "https" ? `${forwarded}:` : null;
-  try { return LOOPBACK_HOSTNAMES.has(new URL(`http://${host}`).hostname) ? "http:" : "https:"; } catch { return null; }
+  if (forwarded !== null) {
+    if (forwarded === "http" || forwarded === "https") return `${forwarded}:`;
+    return null;
+  }
+  try {
+    const hostname = new URL(`http://${host}`).hostname;
+    return LOOPBACK_HOSTNAMES.has(hostname) ? "http:" : "https:";
+  } catch {
+    return null;
+  }
 }
+
+function requestUrl(value: string): URL | null {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:" ? url : null;
+  } catch {
+    return null;
+  }
+}
+
 // Origins this request may legitimately have been sent from. Candidate sources are
 // the URL Next reconstructed and the proxy host headers; each is validated and
 // canonicalized independently, so a malformed header cannot widen the set.
 function requestOrigins(request: Request): Set<string> {
   const origins = new Set<string>();
-  try { const url = new URL(request.url); if (url.protocol === "http:" || url.protocol === "https:") origins.add(url.origin); } catch { /* ignore malformed URL */ }
+
+  const parsed = requestUrl(request.url);
+  if (parsed) origins.add(parsed.origin);
+
   const forwardedProto = request.headers.get("x-forwarded-proto");
-  for (const host of [request.headers.get("x-forwarded-host"), request.headers.get("host")]) {
+  const hostHeaders = [
+    request.headers.get("x-forwarded-host"),
+    request.headers.get("host"),
+  ];
+  for (const host of hostHeaders) {
     if (!host || !HOST_HEADER.test(host)) continue;
     const protocol = protocolFor(host, forwardedProto);
     if (!protocol) continue;
@@ -76,91 +128,217 @@ function requestOrigins(request: Request): Set<string> {
   }
   return origins;
 }
+
 function originCheck(request: Request, allowed: readonly string[]) {
   const origin = request.headers.get("origin");
-  if (!origin || origin === "null" || !canonicalOrigin(origin, true)) throw new RouteError(403, "forbidden", "Origin not allowed");
+  if (!origin || origin === "null" || !canonicalOrigin(origin, true)) {
+    throw new RouteError(403, "forbidden", "Origin not allowed");
+  }
   // Explicit configuration wins; same-origin acceptance needs no configuration.
-  if (allowed.includes(origin) || requestOrigins(request).has(origin)) return;
+  if (allowed.includes(origin)) return;
+  if (requestOrigins(request).has(origin)) return;
   throw new RouteError(403, "forbidden", "Origin not allowed");
 }
 async function readBounded(request: Request): Promise<Uint8Array> {
   assertActive(request);
+
   const length = request.headers.get("content-length");
   if (length !== null) {
     if (!/^\d+$/.test(length)) throw invalid();
-    if (Number(length) > MAX_BODY_BYTES) throw new RouteError(413, "body_too_large", "Request body too large");
+    if (Number(length) > MAX_BODY_BYTES) {
+      throw new RouteError(413, "body_too_large", "Request body too large");
+    }
   }
+
   if (!request.body) throw invalid();
-  const reader = request.body.getReader(), chunks: Uint8Array[] = [];
+
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
   let total = 0;
-  const abort = () => { void reader.cancel().catch(() => undefined); };
+  const abort = () => {
+    void reader.cancel().catch(() => undefined);
+  };
   request.signal.addEventListener("abort", abort, { once: true });
+
   try {
     assertActive(request);
     while (true) {
-      const { done, value } = await reader.read(); assertActive(request);
+      const { done, value } = await reader.read();
+      assertActive(request);
       if (done) break;
       total += value.byteLength;
-      if (total > MAX_BODY_BYTES) { void reader.cancel().catch(() => undefined); throw new RouteError(413, "body_too_large", "Request body too large"); }
+      if (total > MAX_BODY_BYTES) {
+        void reader.cancel().catch(() => undefined);
+        throw new RouteError(413, "body_too_large", "Request body too large");
+      }
       chunks.push(value);
     }
-  } catch (error) { if (error instanceof RouteError) throw error; throw invalid(); }
-  finally { request.signal.removeEventListener("abort", abort); reader.releaseLock(); }
-  const result = new Uint8Array(total); let offset = 0;
-  for (const chunk of chunks) { result.set(chunk, offset); offset += chunk.byteLength; }
+  } catch (error) {
+    if (error instanceof RouteError) throw error;
+    throw invalid();
+  } finally {
+    request.signal.removeEventListener("abort", abort);
+    reader.releaseLock();
+  }
+
+  const result = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    result.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
   return result;
 }
-async function parseImage(request: Request): Promise<ImageInput> {
+
+const MULTIPART_IMAGE_TYPE =
+  /^multipart\/form-data\s*;\s*boundary=(?:[A-Za-z0-9'()+_,.\/:=?-]{1,70}|"[A-Za-z0-9'()+_,.\/:=?-]{1,70}")\s*$/i;
+
+function imageContentType(request: Request): string {
   const type = request.headers.get("content-type") ?? "";
-  if (!/^multipart\/form-data\s*;\s*boundary=(?:[A-Za-z0-9'()+_,.\/:=?-]{1,70}|"[A-Za-z0-9'()+_,.\/:=?-]{1,70}")\s*$/i.test(type)) throw new RouteError(415, "unsupported_media_type", "Expected multipart image");
-  const bytes = await readBounded(request);
-  let form: FormData;
-  try { form = await new Response(new Blob([Uint8Array.from(bytes).buffer]), { headers: { "content-type": type } }).formData(); }
-  catch { throw invalid(); }
-  for (const [key] of form.entries()) if (key !== "image" || form.getAll(key).length !== 1) throw invalid();
-  const file = form.get("image");
-  if (!(file instanceof Blob) || !["image/jpeg", "image/png", "image/webp"].includes(file.type) || !file.size || file.size > MAX_IMAGE_BYTES) throw invalid();
-  assertActive(request);
-  return { bytes: new Uint8Array(await file.arrayBuffer()), mediaType: file.type };
+  if (!MULTIPART_IMAGE_TYPE.test(type)) {
+    throw new RouteError(415, "unsupported_media_type", "Expected multipart image");
+  }
+  return type;
 }
+
+async function formFromBytes(
+  bytes: Uint8Array,
+  contentType: string,
+): Promise<FormData> {
+  try {
+    const body = new Blob([Uint8Array.from(bytes).buffer]);
+    return await new Response(body, {
+      headers: { "content-type": contentType },
+    }).formData();
+  } catch {
+    throw invalid();
+  }
+}
+
+function imageFileFrom(form: FormData): Blob {
+  for (const [key] of form.entries()) {
+    if (key !== "image" || form.getAll(key).length !== 1) throw invalid();
+  }
+  const file = form.get("image");
+  if (!(file instanceof Blob)) throw invalid();
+  if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) throw invalid();
+  if (!file.size || file.size > MAX_IMAGE_BYTES) throw invalid();
+  return file;
+}
+
+async function parseImage(request: Request): Promise<ImageInput> {
+  const contentType = imageContentType(request);
+  const bytes = await readBounded(request);
+  const form = await formFromBytes(bytes, contentType);
+  const file = imageFileFrom(form);
+  assertActive(request);
+  const imageBytes = new Uint8Array(await file.arrayBuffer());
+  return { bytes: imageBytes, mediaType: file.type };
+}
+async function sanitizeForModel(
+  input: ImageInput,
+  sanitize: ImageHandlerDependencies["sanitize"],
+): Promise<ImageInput> {
+  try {
+    const image = await (sanitize ?? sanitizeImage)(input);
+    if (image.mediaType !== "image/jpeg") throw invalid();
+    if (!(image.bytes instanceof Uint8Array)) throw invalid();
+    if (!image.bytes.length || image.bytes.length > MAX_IMAGE_BYTES) throw invalid();
+    return image;
+  } catch {
+    throw invalid();
+  }
+}
+
 export function createImageHandlers(deps: ImageHandlerDependencies) {
   return {
     async analyze(request: Request): Promise<Response> {
       try {
         originCheck(request, deps.allowedOrigins);
-        const input = await parseImage(request); assertActive(request);
+
+        const input = await parseImage(request);
+        assertActive(request);
+
         if (!deps.resolveClientIdentity) throw unavailable();
         let clientKey: string | null;
-        try { clientKey = await deps.resolveClientIdentity(request); } catch { throw unavailable(); }
-        if (typeof clientKey !== "string" || !clientKey.trim() || clientKey.length > 512) throw unavailable();
-        assertActive(request);
-        const outcome = await withQuotaLease(deps.quota, { kind: "model", clientKey, requestId: randomUUID() }, async (quotaContext) => {
-          const controller = new AbortController();
-          const abort = () => controller.abort();
-          quotaContext.signal.addEventListener("abort", abort, { once: true }); request.signal.addEventListener("abort", abort, { once: true });
-          if (quotaContext.signal.aborted || request.signal.aborted) abort();
-          const context: QuotaActionContext = { signal: controller.signal, assertActive() { quotaContext.assertActive(); assertActive(request); controller.signal.throwIfAborted(); } };
-          try {
-            context.assertActive();
-            let image: ImageInput;
-            try {
-              image = await (deps.sanitize ?? sanitizeImage)(input);
-              if (image.mediaType !== "image/jpeg" || !(image.bytes instanceof Uint8Array) || !image.bytes.length || image.bytes.length > MAX_IMAGE_BYTES) throw new Error();
-            } catch { throw invalid(); }
-            context.assertActive();
-            return parseCandidate(await deps.muse.analyze(image, context));
-          }
-          finally { quotaContext.signal.removeEventListener("abort", abort); request.signal.removeEventListener("abort", abort); }
-        });
-        if (!outcome.allowed) {
-          if (outcome.reason === "rate_limit") throw new RouteError(429, "rate_limit", "Request rate limit reached");
+        try {
+          clientKey = await deps.resolveClientIdentity(request);
+        } catch {
+          throw unavailable();
+        }
+        if (
+          typeof clientKey !== "string" ||
+          !clientKey.trim() ||
+          clientKey.length > 512
+        ) {
           throw unavailable();
         }
         assertActive(request);
-        const body = JSON.stringify({ ok: true, data: { candidate: outcome.value } });
+
+        const outcome = await withQuotaLease(
+          deps.quota,
+          { kind: "model", clientKey, requestId: randomUUID() },
+          async (quotaContext) => {
+            const controller = new AbortController();
+            const abort = () => controller.abort();
+            const releaseAbortWiring = () => {
+              quotaContext.signal.removeEventListener("abort", abort);
+              request.signal.removeEventListener("abort", abort);
+            };
+
+            quotaContext.signal.addEventListener("abort", abort, { once: true });
+            request.signal.addEventListener("abort", abort, { once: true });
+            if (quotaContext.signal.aborted || request.signal.aborted) abort();
+
+            const context: QuotaActionContext = {
+              signal: controller.signal,
+              assertActive() {
+                quotaContext.assertActive();
+                assertActive(request);
+                controller.signal.throwIfAborted();
+              },
+            };
+
+            try {
+              context.assertActive();
+              const image = await sanitizeForModel(input, deps.sanitize);
+              context.assertActive();
+              return parseCandidate(await deps.muse.analyze(image, context));
+            } finally {
+              releaseAbortWiring();
+            }
+          },
+        );
+
+        if (!outcome.allowed) {
+          if (outcome.reason === "rate_limit") {
+            throw new RouteError(429, "rate_limit", "Request rate limit reached");
+          }
+          if (outcome.reason === "concurrency") {
+            throw new RouteError(
+              429,
+              "concurrency_limit",
+              "Too many scans are in progress; retry shortly",
+            );
+          }
+          throw unavailable();
+        }
+        assertActive(request);
+
+        const body = JSON.stringify({
+          ok: true,
+          data: { candidate: outcome.value },
+        });
         if (Buffer.byteLength(body) > MAX_RESPONSE_BYTES) throw unavailable();
-        return new Response(body, { headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
-      } catch (error) { return errorResponse(error); }
+        return new Response(body, {
+          headers: {
+            "Content-Type": "application/json",
+            "Cache-Control": "no-store",
+          },
+        });
+      } catch (error) {
+        return errorResponse(error);
+      }
     },
   };
 }

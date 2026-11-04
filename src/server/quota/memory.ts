@@ -5,13 +5,16 @@ type Options = { enabled: boolean; globalCap: number; clientLimit?: number; wind
 
 // Limits are process-local: restarts reset them and separate instances each
 // have their own cap. This is not a distributed limit or a billing hard cap.
+// The default capacity admits four concurrent model calls so a couple of
+// simultaneous scans do not collide, while the per-client window remains 10
+// requests per 60 seconds.
 export class MemoryQuota implements QuotaStore {
   private readonly counts = new Map<string, number[]>();
   private readonly leases = new Set<string>();
   private admitted = 0;
   private readonly options: Required<Options>;
   constructor(options: Options) {
-    this.options = { enabled: options.enabled === true, globalCap: options.globalCap, clientLimit: options.clientLimit ?? 10, windowMs: options.windowMs ?? 60_000, timeoutMs: options.timeoutMs ?? 15_000, maxConcurrency: options.maxConcurrency ?? 1, now: options.now ?? performance.now.bind(performance) };
+    this.options = { enabled: options.enabled === true, globalCap: options.globalCap, clientLimit: options.clientLimit ?? 10, windowMs: options.windowMs ?? 60_000, timeoutMs: options.timeoutMs ?? 15_000, maxConcurrency: options.maxConcurrency ?? 4, now: options.now ?? performance.now.bind(performance) };
     const { globalCap, clientLimit, windowMs, timeoutMs, maxConcurrency } = this.options;
     if (![globalCap, clientLimit, windowMs, timeoutMs, maxConcurrency].every(Number.isSafeInteger) || globalCap < 0 || globalCap > 1_000_000 || clientLimit < 1 || clientLimit > 1000 || windowMs < 1 || windowMs > 86_400_000 || timeoutMs < 1 || timeoutMs > 3_600_000 || maxConcurrency < 1 || maxConcurrency > 100) throw new Error("Invalid quota configuration");
   }

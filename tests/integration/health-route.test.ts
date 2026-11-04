@@ -45,11 +45,11 @@ describe("GET /api/health", () => {
           enabled: false,
           // MUSE_API_URL is unset, so the valid default endpoint is in effect.
           // An unset MODEL_ENABLED is on by default and MODEL_MAX_REQUESTS
-          // defaults to 200, so only the missing key fails.
+          // defaults to 1000, so only the missing key fails.
           reasons: ["MUSE_API_KEY is missing"],
           keyPresent: false,
           enabledFlag: true,
-          cap: 200,
+          cap: 1000,
           model: "muse-spark-1.2",
           endpointHost: "api.meta.ai",
         },
@@ -72,7 +72,7 @@ describe("GET /api/health", () => {
     expect(body.data.model.reasons).toEqual([]);
     expect(body.data.model.keyPresent).toBe(true);
     expect(body.data.model.enabledFlag).toBe(true);
-    expect(body.data.model.cap).toBe(200);
+    expect(body.data.model.cap).toBe(1000);
   });
 
   it("keeps an explicit MODEL_ENABLED=false as a hard off", async () => {
