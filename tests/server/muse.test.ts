@@ -147,7 +147,7 @@ describe("Muse client", () => {
     expect(init.method).toBe("POST");
     expect(init.headers).toMatchObject({ Authorization: "Bearer test-key" });
     const body = JSON.parse(String(init.body));
-    expect(body).toMatchObject({ model: "muse-spark-1.2", reasoning_effort: "minimal", max_completion_tokens: 700, response_format: { type: "json_schema", json_schema: { name: "shelf_read", strict: true } } });
+    expect(body).toMatchObject({ model: "muse-spark-1.2", reasoning_effort: "minimal", max_completion_tokens: 1400, response_format: { type: "json_schema", json_schema: { name: "shelf_read", strict: true } } });
     expect(body.messages[0].role).toBe("developer");
     expect(body.messages[1]).toEqual({ role: "user", content: [{ type: "image_url", image_url: { url: "data:image/jpeg;base64,AQID" } }] });
     expect(body.response_format.json_schema.schema.additionalProperties).toBe(false);

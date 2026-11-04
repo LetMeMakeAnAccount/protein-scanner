@@ -87,7 +87,7 @@ export class MuseClient {
     try {
       const request = (async () => {
         const body = {
-          model, reasoning_effort: "minimal", max_completion_tokens: 700,
+          model, reasoning_effort: "minimal", max_completion_tokens: 1400,
           messages: [
             { role: "developer", content: extractionInstruction },
             { role: "user", content: [{ type: "image_url", image_url: { url: `data:image/jpeg;base64,${Buffer.from(image.bytes).toString("base64")}` } }] },
