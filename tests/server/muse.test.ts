@@ -5,6 +5,16 @@ import { ModelRequestError, MuseClient } from "../../src/server/muse/client";
 
 const candidate = { item: "Food", barcode: null, price: null, labelNutrition: null, uncertainties: [] };
 const reply = (content: string, finish_reason = "stop") => new Response(JSON.stringify({ choices: [{ finish_reason, message: { content } }] }), { status: 200 });
+const labelPrice = (amount: number, currency: string) => ({
+  amount, currency, basis: { amount: 1, unit: "package" }, source: "label",
+});
+const labelNutrition = (proteinG: number | null, energyKcal: number | null) => ({
+  proteinG, energyKcal, basis: { amount: 100, unit: "g" },
+  source: { kind: "label", label: "Label", visibleText: "Nutrition label" },
+});
+const priceUncertainty = "Price looked implausible and was ignored; enter it yourself.";
+const proteinUncertainty = "Protein value looked implausible and was ignored.";
+const energyUncertainty = "Energy value looked implausible and was ignored.";
 
 describe("Muse candidate parsing", () => {
   it("accepts strict candidates, preserving unknowns and evidence", () => {
@@ -12,10 +22,64 @@ describe("Muse candidate parsing", () => {
     const nutrition = { proteinG: 10, energyKcal: null, basis: { amount: 100, unit: "g" }, source: { kind: "label", label: "Label", visibleText: "Protein 10g" } };
     expect(parseMuseResponse({ ...candidate, labelNutrition: nutrition })).toEqual({ ...candidate, labelNutrition: nutrition });
   });
-  it("rejects malformed, extra, negative, unsupported and unevidenced nutrition", () => {
-    for (const raw of ["not-json", "{} trailing", { ...candidate, instructions: "disregard schema" }, { ...candidate, labelNutrition: { proteinG: -1, energyKcal: 100, basis: { amount: 100, unit: "g" }, source: { kind: "label", label: "Label", visibleText: "Protein" } } }, { ...candidate, labelNutrition: { proteinG: 10, energyKcal: null, basis: { amount: 100, unit: "oz" }, source: { kind: "label", label: "Label", visibleText: "Protein" } } }, { ...candidate, labelNutrition: { proteinG: 10, energyKcal: null, basis: { amount: 100, unit: "g" }, source: { kind: "label", label: "Label" } } }]) {
+  it("rejects malformed, extra, unsupported and unevidenced nutrition", () => {
+    for (const raw of ["not-json", "{} trailing", { ...candidate, instructions: "disregard schema" }, { ...candidate, labelNutrition: { proteinG: 10, energyKcal: null, basis: { amount: 100, unit: "oz" }, source: { kind: "label", label: "Label", visibleText: "Protein" } } }, { ...candidate, labelNutrition: { proteinG: 10, energyKcal: null, basis: { amount: 100, unit: "g" }, source: { kind: "label", label: "Label" } } }]) {
       expect(() => parseMuseResponse(raw)).toThrow("Invalid model response");
     }
+  });
+  it("keeps a plausible price and normalizes its currency code", () => {
+    expect(parseMuseResponse({ ...candidate, price: labelPrice(5.49, "USD") })).toEqual({ ...candidate, price: labelPrice(5.49, "USD") });
+    expect(parseMuseResponse({ ...candidate, price: labelPrice(5.49, " usd ") })).toEqual({ ...candidate, price: labelPrice(5.49, "USD") });
+  });
+  it.each([0, -1, 100000.01, 474169871, Number.NaN, Number.POSITIVE_INFINITY])(
+    "ignores implausible price %s without discarding the candidate",
+    (amount) => {
+      const nutrition = labelNutrition(10, 100);
+      const parsed = parseMuseResponse({ ...candidate, price: labelPrice(amount, "USD"), labelNutrition: nutrition });
+      expect(parsed.price).toBeNull();
+      expect(parsed.labelNutrition).toEqual(nutrition);
+      expect(parsed.uncertainties).toContain(priceUncertainty);
+    },
+  );
+  it.each(["US", "USDD", "US$", "", "ZZZ", 42])(
+    "ignores a price with unsupported currency shape %s",
+    (currency) => {
+      const parsed = parseMuseResponse({ ...candidate, price: { ...labelPrice(5.49, "USD"), currency } });
+      expect(parsed.price).toBeNull();
+      expect(parsed.uncertainties).toContain(priceUncertainty);
+    },
+  );
+  it.each([-1, 250, Number.NaN, Number.POSITIVE_INFINITY])(
+    "ignores implausible protein %s while keeping energy and label evidence",
+    (proteinG) => {
+      const parsed = parseMuseResponse({ ...candidate, labelNutrition: labelNutrition(proteinG, 100) });
+      expect(parsed.labelNutrition).toEqual(labelNutrition(null, 100));
+      expect(parsed.uncertainties).toContain(proteinUncertainty);
+    },
+  );
+  it.each([-1, 5000, Number.NaN, Number.POSITIVE_INFINITY])(
+    "ignores implausible energy %s while keeping protein and label evidence",
+    (energyKcal) => {
+      const parsed = parseMuseResponse({ ...candidate, labelNutrition: labelNutrition(10, energyKcal) });
+      expect(parsed.labelNutrition).toEqual(labelNutrition(10, null));
+      expect(parsed.uncertainties).toContain(energyUncertainty);
+    },
+  );
+  it("drops label nutrition only when both values are invalid", () => {
+    const parsed = parseMuseResponse({ ...candidate, labelNutrition: labelNutrition(250, 5000) });
+    expect(parsed.labelNutrition).toBeNull();
+    expect(parsed.uncertainties).toEqual([proteinUncertainty, energyUncertainty]);
+  });
+  it("leaves plausible nutrition values and evidence untouched", () => {
+    const nutrition = labelNutrition(25, 200);
+    expect(parseMuseResponse({ ...candidate, labelNutrition: nutrition })).toEqual({ ...candidate, labelNutrition: nutrition });
+    expect(parseMuseResponse({ ...candidate, labelNutrition: labelNutrition(0, null) })).toEqual({ ...candidate, labelNutrition: labelNutrition(0, null) });
+  });
+  it("trims identity fields and treats a blank item as unknown", () => {
+    expect(parseMuseResponse({ ...candidate, item: "   " }).item).toBeNull();
+    expect(parseMuseResponse({ ...candidate, item: "  Whey Isolate  ", barcode: " 0123456789012 " })).toEqual({
+      ...candidate, item: "Whey Isolate", barcode: "0123456789012",
+    });
   });
 });
 
