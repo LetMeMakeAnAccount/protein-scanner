@@ -167,6 +167,8 @@ describe("Marketplace tab", () => {
     expect(await screen.findByText("Whole Foods")).toBeInTheDocument();
     expect(JSON.parse(localStorage.getItem(MARKET_KEY) ?? "[]")).toHaveLength(1);
     expect(fetchMock.mock.calls.some(([url]) => String(url) === "/api/prices?barcode=012345678905")).toBe(true);
+    expect(within(savedRow).getByText("Protein")).toHaveClass("market-cell-label");
+    expect(within(savedRow).getByText("Protein/100 kcal")).toHaveClass("market-cell-label");
   });
 
   it("adds barcode results automatically, shows observations, date and discount, and dedupes", async () => {
@@ -317,20 +319,38 @@ describe("Marketplace bundled catalog", () => {
     return row as HTMLElement;
   }
 
-  it("browses seed rows without typing and keeps the first page at 40", () => {
+  function visibleText(element: HTMLElement): string {
+    const clone = element.cloneNode(true) as HTMLElement;
+    clone.querySelectorAll(".visually-hidden").forEach((node) => node.remove());
+    return (clone.textContent ?? "").replace(/\s+/g, " ").trim();
+  }
+
+  function catalogLine(row: HTMLElement): string {
+    return Array.from(row.querySelectorAll<HTMLElement>(".catalog-meta [data-column]"))
+      .map((stat) => visibleText(stat))
+      .join(" · ");
+  }
+
+  it("browses compact seed rows without typing and keeps the first page at 40", () => {
     stubApi();
     render(<Home />);
     openMarketplace();
 
     expect(screen.getByRole("heading", { name: "Browse foods" })).toBeInTheDocument();
     expect(within(catalogList()).getAllByRole("listitem")).toHaveLength(40);
+    expect(screen.getByText("Showing 40 of 250")).toBeInTheDocument();
 
     const first = CATALOG[0];
     const row = catalogRow(first.name);
-    expect(cell(row, "protein")).toHaveTextContent("82 g");
+    expect(catalogLine(row)).toBe("P 82g · 361 kcal · 22.7 g/100kcal · $ —");
+    expect(row.querySelectorAll(".catalog-sep")).toHaveLength(3);
+    expect(cell(row, "protein")).toHaveTextContent("P 82g");
     expect(cell(row, "kcal")).toHaveTextContent("361 kcal");
-    expect(cell(row, "per-kcal")).toHaveTextContent("22.71 g/100 kcal");
-    expect(cell(row, "per-dollar")).toHaveTextContent("—");
+    expect(cell(row, "per-kcal")).toHaveTextContent("22.7 g/100kcal");
+    expect(cell(row, "per-dollar")).toHaveTextContent("$ —");
+    expect(within(row).getByRole("heading", { name: first.name })).toHaveAttribute("title", first.name);
+    expect(row.querySelector(".market-cell-label")).toBeNull();
+    expect(within(row).getByRole("button", { name: `Add ${first.name} to list` })).toHaveClass("catalog-add");
     expect(screen.getByText("Catalog: Open Food Facts (ODbL)")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /show more/i })).toBeInTheDocument();
   });
@@ -376,6 +396,21 @@ describe("Marketplace bundled catalog", () => {
     expect(stored[0].packageWeightG).toBe(food.packageGrams);
   });
 
+  it("adds a catalog row from a tap anywhere on the row", () => {
+    stubApi();
+    render(<Home />);
+    openMarketplace();
+
+    const food = CATALOG.find((entry) => entry.name === "RXBAR Chocolate Sea Salt");
+    if (!food) throw new Error("Seed row missing");
+
+    fireEvent.change(screen.getByLabelText(/filter foods/i), { target: { value: "RXBAR Chocolate Sea Salt" } });
+    fireEvent.click(catalogRow(food.name));
+
+    expect(JSON.parse(localStorage.getItem(MARKET_KEY) ?? "[]")).toHaveLength(1);
+    expect(screen.getByLabelText(/package weight \(g\)/i)).toHaveValue(food.packageGrams);
+  });
+
   it("expands the catalog in pages of 40 with Show more", () => {
     stubApi();
     render(<Home />);
@@ -401,6 +436,8 @@ describe("Marketplace bundled catalog", () => {
 
     const catalog = catalogList();
     const row = within(catalog).getByRole("heading", { name: food.name }).closest("li") as HTMLElement;
-    expect(cell(row, "per-dollar")).toHaveTextContent("6.01 g/USD");
+    const perDollar = cell(row, "per-dollar");
+    expect(perDollar).toHaveTextContent("$ 6.01");
+    expect(perDollar).toHaveAttribute("title", "6.01 g per USD");
   });
 });

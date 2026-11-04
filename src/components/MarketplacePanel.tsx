@@ -51,6 +51,11 @@ function positiveInput(value: string): number | null {
   return parsed;
 }
 
+/** Ratios in the compact catalog line keep one decimal so four stats stay on one line. */
+function formatRatio(value: number): string {
+  return value.toLocaleString("en-US", { maximumFractionDigits: 1 });
+}
+
 function Cell({
   label,
   column,
@@ -86,19 +91,6 @@ function MarketHead() {
   );
 }
 
-function CatalogHead() {
-  return (
-    <div className="market-table-head catalog-table-head" aria-hidden="true">
-      <span>Food</span>
-      <span>Protein</span>
-      <span>Kcal</span>
-      <span>Protein/100 kcal</span>
-      <span>Protein/$</span>
-      <span />
-    </div>
-  );
-}
-
 type CatalogRowProps = {
   food: CatalogFood;
   price: { value: number; currency: string } | null;
@@ -108,44 +100,58 @@ type CatalogRowProps = {
 function CatalogRow({ food, price, onAdd }: CatalogRowProps) {
   const perKcal = catalogProteinPer100Kcal(food);
   const perDollar = catalogProteinPerDollar(food, price);
-  const meta = [food.packageLabel, food.country].filter(Boolean).join(" · ");
+  const perDollarTitle =
+    perDollar === null ? undefined : `${formatNumber(perDollar)} g per ${price?.currency ?? "USD"}`;
 
   return (
     <li className="market-item catalog-item" onClick={onAdd}>
-      <div className="market-grid catalog-grid">
-        <div className="market-ident">
-          <h3 className="market-name">{food.name}</h3>
-          <span className="market-barcode">
-            {food.code}
-            {meta ? ` · ${meta}` : ""}
-          </span>
+      <div className="catalog-row">
+        <div className="catalog-main">
+          <h3 className="market-name catalog-name" title={food.name}>
+            {food.name}
+          </h3>
+          <p className="catalog-meta">
+            <span className="catalog-stat" data-column="protein">
+              <span className="visually-hidden">Protein </span>
+              <span aria-hidden="true">P </span>
+              {formatNumber(food.proteinG)}g
+            </span>
+            <span className="catalog-sep" aria-hidden="true">
+              ·
+            </span>
+            <span className="catalog-stat" data-column="kcal">
+              <span className="visually-hidden">Energy </span>
+              {formatNumber(food.kcal)} kcal
+            </span>
+            <span className="catalog-sep" aria-hidden="true">
+              ·
+            </span>
+            <span className="catalog-stat" data-column="per-kcal">
+              <span className="visually-hidden">Protein per 100 kcal </span>
+              {perKcal === null ? DASH : `${formatRatio(perKcal)} g/100kcal`}
+            </span>
+            <span className="catalog-sep" aria-hidden="true">
+              ·
+            </span>
+            <span className="catalog-stat" data-column="per-dollar" title={perDollarTitle}>
+              <span className="visually-hidden">Protein per dollar </span>
+              <span aria-hidden="true">$ </span>
+              {perDollar === null ? DASH : formatNumber(perDollar)}
+            </span>
+          </p>
         </div>
-        <Cell label="Protein" column="protein" value={`${formatNumber(food.proteinG)} g`} />
-        <Cell label="Kcal" column="kcal" value={`${formatNumber(food.kcal)} kcal`} />
-        <Cell
-          label="Protein/100 kcal"
-          column="per-kcal"
-          value={perKcal === null ? DASH : `${formatNumber(perKcal)} g/100 kcal`}
-        />
-        <Cell
-          label="Protein/$"
-          column="per-dollar"
-          value={perDollar === null ? DASH : `${formatNumber(perDollar)} g/${price?.currency ?? "USD"}`}
-          highlighted
-        />
-        <div className="market-actions" aria-hidden="true">
-          <span className="market-action market-action-primary">Add</span>
-        </div>
+        <button
+          type="button"
+          className="catalog-add"
+          aria-label={`Add ${food.name} to list`}
+          onClick={(event) => {
+            event.stopPropagation();
+            onAdd();
+          }}
+        >
+          Add
+        </button>
       </div>
-      <button
-        type="button"
-        className="catalog-hit"
-        aria-label={`Add ${food.name} to list`}
-        onClick={(event) => {
-          event.stopPropagation();
-          onAdd();
-        }}
-      />
     </li>
   );
 }
@@ -617,7 +623,6 @@ export default function MarketplacePanel() {
 
         {visibleCatalog.length > 0 ? (
           <>
-            <CatalogHead />
             <ul className="market-list" aria-label="Catalog foods">
               {visibleCatalog.map((food) => {
                 const key = marketKey({ name: food.name, barcode: food.code });

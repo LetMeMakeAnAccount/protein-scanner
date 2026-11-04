@@ -1560,38 +1560,92 @@ a {
 }
 
 .catalog-item {
-  position: relative;
   cursor: pointer;
-}
-
-.catalog-item .market-barcode {
-  display: block;
-  overflow-wrap: anywhere;
 }
 
 .catalog-item:hover {
   border-color: var(--green);
-  box-shadow: 0 6px 16px rgb(23 37 29 / 0.07);
+  box-shadow: 0 4px 12px rgb(23 37 29 / 0.06);
 }
 
-.catalog-grid {
-  pointer-events: none;
+.catalog-item:hover .catalog-add {
+  background: var(--green-dark);
+  border-color: var(--green-dark);
 }
 
-.catalog-hit {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  padding: 0;
-  background: transparent;
-  border: 0;
-  border-radius: 12px;
+.catalog-item:focus-within {
+  border-color: var(--green);
+  box-shadow: 0 0 0 1px var(--green);
+}
+
+.catalog-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 64px;
+  padding: 10px 12px;
+}
+
+.catalog-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  flex: 1 1 auto;
+  gap: 2px;
+  min-width: 0;
+}
+
+.catalog-name {
+  min-width: 0;
+  font-size: 1rem;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.catalog-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 2px;
+  align-items: baseline;
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.71rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.35;
+}
+
+.catalog-stat {
+  white-space: nowrap;
+}
+
+.catalog-sep {
+  color: #8f8978;
+  font-weight: 400;
+}
+
+.catalog-add {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 48px;
+  padding: 0 7px;
+  color: #fff;
+  background: var(--green);
+  border: 2px solid var(--green-dark);
+  border-radius: 10px;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
   cursor: pointer;
 }
 
-.catalog-hit:focus-visible {
+.catalog-add:focus-visible {
   outline: 3px solid var(--amber-line);
-  outline-offset: -3px;
+  outline-offset: 2px;
 }
 
 .catalog-count {
@@ -1607,10 +1661,11 @@ a {
 }
 
 @media (min-width: 860px) {
-  .catalog-table-head,
-  .catalog-grid {
-    grid-template-columns:
-      minmax(0, 2fr) minmax(0, 0.8fr) minmax(0, 0.9fr) minmax(0, 1.15fr)
-      minmax(0, 1fr) 84px;
+  .catalog-row {
+    padding: 10px 14px;
+  }
+
+  .catalog-meta {
+    font-size: 0.78rem;
   }
 }
