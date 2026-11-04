@@ -14,14 +14,14 @@ describe("image sanitization", () => {
       expect(metadata.exif).toBeUndefined();
     }
   });
-  it("resizes large frames to fit 768px and never upscales small ones", async () => {
+  it("resizes large frames to fit 640px and never upscales small ones", async () => {
     const large = await sharp({ create: { width: 2000, height: 1000, channels: 3, background: "red" } }).withMetadata({ exif: { IFD0: { Artist: "private" } } }).jpeg().toBuffer();
     const resized = await sanitizeImage({ bytes: large, mediaType: "image/jpeg" });
     const metadata = await sharp(resized.bytes).metadata();
     expect(resized.mediaType).toBe("image/jpeg");
-    expect(metadata.width).toBe(768);
-    expect(metadata.height).toBe(384);
-    expect(Math.max(metadata.width!, metadata.height!)).toBeLessThanOrEqual(768);
+    expect(metadata.width).toBe(640);
+    expect(metadata.height).toBe(320);
+    expect(Math.max(metadata.width!, metadata.height!)).toBeLessThanOrEqual(640);
     expect(metadata.exif).toBeUndefined();
     const small = await sharp({ create: { width: 10, height: 5, channels: 3, background: "red" } }).png().toBuffer();
     const kept = await sharp((await sanitizeImage({ bytes: small, mediaType: "image/png" })).bytes).metadata();

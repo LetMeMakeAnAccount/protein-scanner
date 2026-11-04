@@ -5,8 +5,8 @@ import type { ImageInput } from "../contracts/types";
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const MAX_IMAGE_PIXELS = 20_000_000;
 // Bounded output keeps re-encoding fast and model token use small; never upscales.
-const MAX_OUTPUT_EDGE = 768;
-const OUTPUT_QUALITY = 80;
+const MAX_OUTPUT_EDGE = 640;
+const OUTPUT_QUALITY = 75;
 const formats: Record<string, string> = { "image/jpeg": "jpeg", "image/png": "png", "image/webp": "webp" };
 
 // Decode and re-encode in memory only, stripping metadata before transmission.
