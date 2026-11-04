@@ -1,0 +1,2256 @@
+{
+ "generatedAt": "2026-11-04T20:23:19.870Z",
+ "source": "Open Food Facts (ODbL)",
+ "foods": [
+  {
+   "code": "0089094026219",
+   "name": "Isopure Protein Powder Drink Mix",
+   "proteinG": 82,
+   "kcal": 361,
+   "packageGrams": null,
+   "packageLabel": "30.5 g",
+   "country": "US"
+  },
+  {
+   "code": "0748927028669",
+   "name": "Optimum Nutrition 100% Whey Gold Standard",
+   "proteinG": 79,
+   "kcal": 395,
+   "packageGrams": 2270,
+   "packageLabel": "5 LB (2.27 KG)",
+   "country": "US"
+  },
+  {
+   "code": "0748927065404",
+   "name": "Optimum Nutrition Protein powder",
+   "proteinG": 77.4,
+   "kcal": 387,
+   "packageGrams": 2480,
+   "packageLabel": "80 x 31g",
+   "country": "US"
+  },
+  {
+   "code": "0851770003919",
+   "name": "Orgain Organic Protein Protein Powder",
+   "proteinG": 76,
+   "kcal": 387,
+   "packageGrams": null,
+   "packageLabel": "",
+   "country": "US"
+  },
+  {
+   "code": "0748927059113",
+   "name": "Optimum Nutrition Gold Standard 100% Whey Extreme Milk Chocolate",
+   "proteinG": 75,
+   "kcal": 375,
+   "packageGrams": null,
+   "packageLabel": "",
+   "country": "US"
+  },
+  {
+   "code": "0815863021495",
+   "name": "Ascent 100% Whey Native Whey Protein Blend",
+   "proteinG": 73.5,
+   "kcal": 364,
+   "packageGrams": null,
+   "packageLabel": "",
+   "country": "US"
+  },
+  {
+   "code": "0196633918901",
+   "name": "Kirkland Signature Whey Protein Creamy Chocolate",
+   "proteinG": 71.4,
+   "kcal": 371,
+   "packageGrams": 2449,
+   "packageLabel": "5.4lb",
+   "country": "US"
+  },
+  {
+   "code": "0850019568240",
+   "name": "Vital Proteins Collagen Peptides",
+   "proteinG": 66.7,
+   "kcal": 333,
+   "packageGrams": null,
+   "packageLabel": "I tablespoon",
+   "country": "US"
+  },
+  {
+   "code": "0851770003179",
+   "name": "Orgain Organic Protein Protein Powder",
+   "proteinG": 45.7,
+   "kcal": 326,
+   "packageGrams": 921,
+   "packageLabel": "2.03 lbs",
+   "country": "US"
+  },
+  {
+   "code": "0851770003254",
+   "name": "Orgain Organic Protein Protein Powder",
+   "proteinG": 45.7,
+   "kcal": 326,
+   "packageGrams": 920,
+   "packageLabel": "32.4 oz (920g)",
+   "country": "US"
+  },
+  {
+   "code": "0851770008631",
+   "name": "Orgain Organic Protein",
+   "proteinG": 42,
+   "kcal": 320,
+   "packageGrams": 1200,
+   "packageLabel": "1.2 kg",
+   "country": "US"
+  },
+  {
+   "code": "0851770007566",
+   "name": "Orgain Organic Protein",
+   "proteinG": 41.2,
+   "kcal": 314,
+   "packageGrams": 1225,
+   "packageLabel": "43.2 oz (2.7 lbs) 1.22kg",
+   "country": "US"
+  },
+  {
+   "code": "0851770007351",
+   "name": "Orgain Organic Protein Protein Powder",
+   "proteinG": 41.2,
+   "kcal": 314,
+   "packageGrams": 510,
+   "packageLabel": "1.12 lbs (510 g)",
+   "country": "US"
+  },
+  {
+   "code": "3168930007340",
+   "name": "Bénénuts cacahuètes grillées & salées",
+   "proteinG": 27,
+   "kcal": 631,
+   "packageGrams": 220,
+   "packageLabel": "220 g",
+   "country": "US"
+  },
+  {
+   "code": "0857111004232",
+   "name": "RXBAR Chocolate Sea Salt",
+   "proteinG": 23.1,
+   "kcal": 385,
+   "packageGrams": 52,
+   "packageLabel": "52g",
+   "country": "US"
+  },
+  {
+   "code": "0051500255162",
+   "name": "Jif Creamy Peanut Butter",
+   "proteinG": 21.2,
+   "kcal": 576,
+   "packageGrams": 454,
+   "packageLabel": "16oz",
+   "country": "US"
+  },
+  {
+   "code": "0096619885718",
+   "name": "KIRKLAND signature UNSALTED MIXED NUTS",
+   "proteinG": 17.6,
+   "kcal": 600,
+   "packageGrams": 1130,
+   "packageLabel": "1.13 kg",
+   "country": "US"
+  },
+  {
+   "code": "0096619555505",
+   "name": "Kirkland Organic Creamy Peanut Butter",
+   "proteinG": 12.5,
+   "kcal": 563,
+   "packageGrams": 794,
+   "packageLabel": "793.8 g",
+   "country": "US"
+  },
+  {
+   "code": "0857777004195",
+   "name": "Blueberry RXBAR",
+   "proteinG": 12,
+   "kcal": 346,
+   "packageGrams": 52,
+   "packageLabel": "52 g",
+   "country": "US"
+  },
+  {
+   "code": "0850004554869",
+   "name": "IQ BAR 18 PROTEIN BAR VARIETY PACK",
+   "proteinG": 12,
+   "kcal": 400,
+   "packageGrams": 816,
+   "packageLabel": "816 g",
+   "country": "US"
+  },
+  {
+   "code": "7300400481588",
+   "name": "wasa Fibres",
+   "proteinG": 12,
+   "kcal": 333,
+   "packageGrams": 230,
+   "packageLabel": "230 g",
+   "country": "US"
+  },
+  {
+   "code": "0722252101204",
+   "name": "ClifBar Crunchy Peanut Butter",
+   "proteinG": 11,
+   "kcal": 260,
+   "packageGrams": 68,
+   "packageLabel": "2.40 oz",
+   "country": "US"
+  },
+  {
+   "code": "5025125000006",
+   "name": "Jason's Sourdough White Ciabattin",
+   "proteinG": 10.1,
+   "kcal": 230,
+   "packageGrams": 580,
+   "packageLabel": "580 g",
+   "country": "US"
+  },
+  {
+   "code": "6111246721278",
+   "name": "Original Cream cheese",
+   "proteinG": 10,
+   "kcal": 257,
+   "packageGrams": 1000,
+   "packageLabel": "1 kg",
+   "country": "US"
+  },
+  {
+   "code": "3760049796384",
+   "name": "La Boulangère Tartines céréales & graines 450g",
+   "proteinG": 10,
+   "kcal": 298,
+   "packageGrams": 450,
+   "packageLabel": "450 g",
+   "country": "US"
+  },
+  {
+   "code": "6111203006653",
+   "name": "La Hollandaise Cheddar",
+   "proteinG": 9,
+   "kcal": 270,
+   "packageGrams": null,
+   "packageLabel": "",
+   "country": "US"
+  },
+  {
+   "code": "6111242106949",
+   "name": "Jaouda Jben",
+   "proteinG": 8,
+   "kcal": 235,
+   "packageGrams": 160,
+   "packageLabel": "160g",
+   "country": "US"
+  },
+  {
+   "code": "6111246721261",
+   "name": "Milky Food Professional Fromage Blanc Nature",
+   "proteinG": 7.3,
+   "kcal": 81,
+   "packageGrams": 1000,
+   "packageLabel": "1 kg",
+   "country": "US"
+  },
+  {
+   "code": "0040822011143",
+   "name": "Sabra Classic Hummus",
+   "proteinG": 6.7,
+   "kcal": 233,
+   "packageGrams": 284,
+   "packageLabel": "284 g",
+   "country": "US"
+  },
+  {
+   "code": "6111246722039",
+   "name": "milky foof fromage herbes milky food",
+   "proteinG": 4.8,
+   "kcal": 228,
+   "packageGrams": 1000,
+   "packageLabel": "1kg",
+   "country": "US"
+  },
+  {
+   "code": "3760322501636",
+   "name": "Nutripure Whey isolat",
+   "proteinG": 87,
+   "kcal": 380,
+   "packageGrams": 750,
+   "packageLabel": "750g",
+   "country": null
+  },
+  {
+   "code": "5400706614641",
+   "name": "Purasana Vegan Protein",
+   "proteinG": 83.8,
+   "kcal": 398,
+   "packageGrams": 400,
+   "packageLabel": "400 g",
+   "country": null
+  },
+  {
+   "code": "2145405830000",
+   "name": "Decathlon Pure Whey 100% Isolate Chocolat",
+   "proteinG": 82,
+   "kcal": 379,
+   "packageGrams": 900,
+   "packageLabel": "900 g",
+   "country": null
+  },
+  {
+   "code": "2145405860007",
+   "name": "Decathlon Pure whey 100% isolate vanille",
+   "proteinG": 82,
+   "kcal": 370,
+   "packageGrams": 900,
+   "packageLabel": "900 g",
+   "country": null
+  },
+  {
+   "code": "3583785263411",
+   "name": "DECATHLON Pure whey 100% isolate cookie & cream",
+   "proteinG": 82,
+   "kcal": 373,
+   "packageGrams": 900,
+   "packageLabel": "900 g",
+   "country": null
+  },
+  {
+   "code": "5600872803898",
+   "name": "ISWARI Super vegan protein",
+   "proteinG": 80,
+   "kcal": 376,
+   "packageGrams": 250,
+   "packageLabel": "250 g",
+   "country": null
+  },
+  {
+   "code": "4066447484809",
+   "name": "Sportness dm sportness whey protein",
+   "proteinG": 80,
+   "kcal": 370,
+   "packageGrams": 450,
+   "packageLabel": "450g",
+   "country": null
+  },
+  {
+   "code": "5060469988535",
+   "name": "Optimum Nutrition Gold Standard 100% Whey",
+   "proteinG": 80,
+   "kcal": 377,
+   "packageGrams": 900,
+   "packageLabel": "900 g",
+   "country": null
+  },
+  {
+   "code": "4066447530629",
+   "name": "Sportness Protein Shake Vegan Vanille-Geschmack",
+   "proteinG": 80,
+   "kcal": 365,
+   "packageGrams": 300,
+   "packageLabel": "300 g",
+   "country": null
+  },
+  {
+   "code": "3760322504002",
+   "name": "Nutripure Protéine végétale",
+   "proteinG": 80,
+   "kcal": 397,
+   "packageGrams": 750,
+   "packageLabel": "750 g",
+   "country": null
+  },
+  {
+   "code": "5060245603935",
+   "name": "Optimum Nutrition McLaren FORMULA 1 TEAM OFFICIAL SPORTS NUTRITION P",
+   "proteinG": 79,
+   "kcal": 378,
+   "packageGrams": 450,
+   "packageLabel": "450 g",
+   "country": null
+  },
+  {
+   "code": "5060245600507",
+   "name": "Optimum Nutrition Gold Standard 100% Whey Double Rich Chocolate",
+   "proteinG": 77.4,
+   "kcal": 374,
+   "packageGrams": 465,
+   "packageLabel": "465 g",
+   "country": null
+  },
+  {
+   "code": "8719881036429",
+   "name": "XXL Nutrition Whey Protein",
+   "proteinG": 77,
+   "kcal": 393,
+   "packageGrams": null,
+   "packageLabel": "600 gram",
+   "country": null
+  },
+  {
+   "code": "8719881036436",
+   "name": "XXL Nutrition Whey Protein cookies",
+   "proteinG": 77,
+   "kcal": 393,
+   "packageGrams": null,
+   "packageLabel": "30 gram",
+   "country": null
+  },
+  {
+   "code": "4260701927105",
+   "name": "foodspring whey protein",
+   "proteinG": 76.7,
+   "kcal": 387,
+   "packageGrams": null,
+   "packageLabel": "",
+   "country": null
+  },
+  {
+   "code": "5060469988467",
+   "name": "Optimum Nutrition whey gold standard",
+   "proteinG": 76,
+   "kcal": 374,
+   "packageGrams": 899,
+   "packageLabel": "899 g",
+   "country": null
+  },
+  {
+   "code": "4260390241629",
+   "name": "Naduria Protein. Whey ungesüßt",
+   "proteinG": 76,
+   "kcal": 382,
+   "packageGrams": 300,
+   "packageLabel": "300g",
+   "country": null
+  },
+  {
+   "code": "5060469988474",
+   "name": "Optimum Nutrition Gold Standard 100% Whey Double Rich Chocolate",
+   "proteinG": 76,
+   "kcal": 387,
+   "packageGrams": null,
+   "packageLabel": "2 g",
+   "country": null
+  },
+  {
+   "code": "3583787294765",
+   "name": "DÉCATHLON Whey protein neutre",
+   "proteinG": 75,
+   "kcal": 397,
+   "packageGrams": 900,
+   "packageLabel": "900 g",
+   "country": null
+  },
+  {
+   "code": "4260426832104",
+   "name": "IronMaxx 100% Whey Protein French Vanilla",
+   "proteinG": 75,
+   "kcal": 393,
+   "packageGrams": 500,
+   "packageLabel": "500g",
+   "country": null
+  },
+  {
+   "code": "3701182300076",
+   "name": "Aller Nutrition Whey proteine Bio, à la vanille bio",
+   "proteinG": 75,
+   "kcal": 369,
+   "packageGrams": 200,
+   "packageLabel": "200 g",
+   "country": null
+  },
+  {
+   "code": "5900617003454",
+   "name": "Délices Terra Peanut Butter Crunchy",
+   "proteinG": 75,
+   "kcal": 594,
+   "packageGrams": 350,
+   "packageLabel": "350 g",
+   "country": null
+  },
+  {
+   "code": "8719979204471",
+   "name": "Accelerate Whey Protein",
+   "proteinG": 74,
+   "kcal": 369,
+   "packageGrams": 540,
+   "packageLabel": "18 x 30 g",
+   "country": null
+  },
+  {
+   "code": "3175681247161",
+   "name": "Whey isostar",
+   "proteinG": 74,
+   "kcal": 387,
+   "packageGrams": 570,
+   "packageLabel": "570 g",
+   "country": null
+  },
+  {
+   "code": "3175681247154",
+   "name": "isostar Whey Protein Chocolate Flavor",
+   "proteinG": 73.3,
+   "kcal": 390,
+   "packageGrams": 570,
+   "packageLabel": "570g",
+   "country": null
+  },
+  {
+   "code": "5600380897549",
+   "name": "Prozis 100% real whey protein",
+   "proteinG": 73,
+   "kcal": 371,
+   "packageGrams": 400,
+   "packageLabel": "400 g",
+   "country": null
+  },
+  {
+   "code": "0804642002442",
+   "name": "LeanFit Whey Protein Vanilla",
+   "proteinG": 72.7,
+   "kcal": 424,
+   "packageGrams": 2000,
+   "packageLabel": "2000 g",
+   "country": null
+  },
+  {
+   "code": "4260744952133",
+   "name": "nu3 Vegan Protein",
+   "proteinG": 71,
+   "kcal": 390,
+   "packageGrams": 500,
+   "packageLabel": "500g",
+   "country": null
+  },
+  {
+   "code": "8414192346853",
+   "name": "Weider Vegan Protein Brownie Chocolate",
+   "proteinG": 71,
+   "kcal": 399,
+   "packageGrams": 750,
+   "packageLabel": "750 g",
+   "country": null
+  },
+  {
+   "code": "0631656710496",
+   "name": "MUSCLETECH Nitro Tech 100% WHEY GOLD",
+   "proteinG": 70.6,
+   "kcal": 382,
+   "packageGrams": 2270,
+   "packageLabel": "2.27kg",
+   "country": null
+  },
+  {
+   "code": "8719979204457",
+   "name": "Accelerate Whey Protein",
+   "proteinG": 70,
+   "kcal": 364,
+   "packageGrams": 540,
+   "packageLabel": "18 x 30 g",
+   "country": null
+  },
+  {
+   "code": "3583787458693",
+   "name": "DÉCATHLON Whey protein chocolat",
+   "proteinG": 70,
+   "kcal": 378,
+   "packageGrams": 900,
+   "packageLabel": "900 g",
+   "country": null
+  },
+  {
+   "code": "8718836397073",
+   "name": "Bodymass Nutrition Whey protein",
+   "proteinG": 70,
+   "kcal": 420,
+   "packageGrams": null,
+   "packageLabel": "670 gram",
+   "country": null
+  },
+  {
+   "code": "3608391673093",
+   "name": "Decathlon Whey protein chocolat",
+   "proteinG": 70,
+   "kcal": 377,
+   "packageGrams": 450,
+   "packageLabel": "450 g",
+   "country": null
+  },
+  {
+   "code": "3583787458709",
+   "name": "Decathlon Whey protein vanille",
+   "proteinG": 70,
+   "kcal": 366,
+   "packageGrams": 900,
+   "packageLabel": "900 g",
+   "country": null
+  },
+  {
+   "code": "8718836397059",
+   "name": "Bodymass Whey protein",
+   "proteinG": 70,
+   "kcal": 410,
+   "packageGrams": null,
+   "packageLabel": "670 gram",
+   "country": null
+  },
+  {
+   "code": "8718836397066",
+   "name": "BODYMASS NUTION Whey protéine Muscle Madd Strawberry Falvor",
+   "proteinG": 70,
+   "kcal": 417,
+   "packageGrams": null,
+   "packageLabel": "670 gram",
+   "country": null
+  },
+  {
+   "code": "3583787357330",
+   "name": "Décathlon Whey protein cookies & cream",
+   "proteinG": 70,
+   "kcal": 361,
+   "packageGrams": 900,
+   "packageLabel": "900 g",
+   "country": null
+  },
+  {
+   "code": "3608393168535",
+   "name": "Decathlon Lean protein chocolat noisettes",
+   "proteinG": 68,
+   "kcal": 380,
+   "packageGrams": 500,
+   "packageLabel": "500 g",
+   "country": null
+  },
+  {
+   "code": "4260744953918",
+   "name": "Nu3 Vegan Protein 3K Vanilla Flavour",
+   "proteinG": 67,
+   "kcal": 367,
+   "packageGrams": 500,
+   "packageLabel": "500 g",
+   "country": null
+  },
+  {
+   "code": "4260390244477",
+   "name": "NADRIA vegan protein shake",
+   "proteinG": 60,
+   "kcal": 385,
+   "packageGrams": 300,
+   "packageLabel": "300g",
+   "country": null
+  },
+  {
+   "code": "3583787166062",
+   "name": "Décathlon Whey bio protein",
+   "proteinG": 60,
+   "kcal": 404,
+   "packageGrams": null,
+   "packageLabel": "",
+   "country": null
+  },
+  {
+   "code": "4260390243852",
+   "name": "NADIRIA protein vegan pur",
+   "proteinG": 57,
+   "kcal": 357,
+   "packageGrams": 300,
+   "packageLabel": "300g",
+   "country": null
+  },
+  {
+   "code": "4056489038627",
+   "name": "SPORTYFEEL Protein Bar sabor a Brownie",
+   "proteinG": 50,
+   "kcal": 369,
+   "packageGrams": 135,
+   "packageLabel": "135 g (3 x 45 g)",
+   "country": null
+  },
+  {
+   "code": "20035525",
+   "name": "Lidl Protein Bar",
+   "proteinG": 50,
+   "kcal": 369,
+   "packageGrams": 45,
+   "packageLabel": "45g",
+   "country": null
+  },
+  {
+   "code": "20035594",
+   "name": "Ironmaxx Nutrition GmbH & Co. Protein Bar Cookie & Cream Flavour",
+   "proteinG": 50,
+   "kcal": 368,
+   "packageGrams": 45,
+   "packageLabel": "45 g",
+   "country": null
+  },
+  {
+   "code": "5600317476052",
+   "name": "ISWARI PROTEINE DE CHANVRE POUDRE SANS GLUTEN",
+   "proteinG": 50,
+   "kcal": 362,
+   "packageGrams": 250,
+   "packageLabel": "250g",
+   "country": null
+  },
+  {
+   "code": "5060238480048",
+   "name": "naturya organic HEMP PROTEIN powder",
+   "proteinG": 49,
+   "kcal": 360,
+   "packageGrams": 300,
+   "packageLabel": "300g",
+   "country": null
+  },
+  {
+   "code": "8480000137388",
+   "name": "MERCADONA Cacahuete en polvo desgrasado",
+   "proteinG": 46.7,
+   "kcal": 417,
+   "packageGrams": 200,
+   "packageLabel": "200g",
+   "country": null
+  },
+  {
+   "code": "8719979200664",
+   "name": "2keep Protein Bar Double Choco",
+   "proteinG": 40,
+   "kcal": 383,
+   "packageGrams": null,
+   "packageLabel": "30 gram",
+   "country": null
+  },
+  {
+   "code": "5391532121710",
+   "name": "Fulfil Protrein Bar Salted Caramel",
+   "proteinG": 37,
+   "kcal": 372,
+   "packageGrams": 55,
+   "packageLabel": "55 g",
+   "country": null
+  },
+  {
+   "code": "5391532124179",
+   "name": "Fulfil Chocolate and Peanut Butter Flavour Vitamin & Protein Bar",
+   "proteinG": 36.4,
+   "kcal": 373,
+   "packageGrams": 55,
+   "packageLabel": "55g 1 Bar",
+   "country": null
+  },
+  {
+   "code": "3609200011525",
+   "name": "Joyfuel Barre protéine",
+   "proteinG": 36.4,
+   "kcal": 369,
+   "packageGrams": null,
+   "packageLabel": null,
+   "country": null
+  },
+  {
+   "code": "3609200011174",
+   "name": "Joyfuel Cookie Dough chocolat au lait",
+   "proteinG": 36,
+   "kcal": 372,
+   "packageGrams": 55,
+   "packageLabel": "55g",
+   "country": null
+  },
+  {
+   "code": "3609200011549",
+   "name": "Joyguel Barre cacahuètes caramel chocolat",
+   "proteinG": 36,
+   "kcal": 382,
+   "packageGrams": 55,
+   "packageLabel": "55 g",
+   "country": null
+  },
+  {
+   "code": "3609200011532",
+   "name": "Joyfuel Goût Noisette Chocolat Noir",
+   "proteinG": 36,
+   "kcal": 369,
+   "packageGrams": 55,
+   "packageLabel": "55 g",
+   "country": null
+  },
+  {
+   "code": "5390691017919",
+   "name": "FULFIL VITAMIN & PROTEIN BAR",
+   "proteinG": 35.2,
+   "kcal": 368,
+   "packageGrams": 55,
+   "packageLabel": "55 g",
+   "country": null
+  },
+  {
+   "code": "5060811383254",
+   "name": "Grenade High Protein, Low Sugar",
+   "proteinG": 35,
+   "kcal": 388,
+   "packageGrams": 60,
+   "packageLabel": "60g",
+   "country": null
+  },
+  {
+   "code": "5391532124162",
+   "name": "Fulfil Chocolate and Hazelnut",
+   "proteinG": 34.5,
+   "kcal": 516,
+   "packageGrams": 55,
+   "packageLabel": "55 g",
+   "country": null
+  },
+  {
+   "code": "5060221206860",
+   "name": "Grenade Salted Caramel",
+   "proteinG": 34,
+   "kcal": 370,
+   "packageGrams": null,
+   "packageLabel": "60 gram",
+   "country": null
+  },
+  {
+   "code": "4056489997665",
+   "name": "Sponser Protein Bar Peanuts & Caramel Flavour",
+   "proteinG": 32,
+   "kcal": 389,
+   "packageGrams": 50,
+   "packageLabel": "50g",
+   "country": null
+  },
+  {
+   "code": "4056489997658",
+   "name": "SPORTYFEEL CRUNCHY PROTEIN BAR Caramel Crisp flavour",
+   "proteinG": 32,
+   "kcal": 371,
+   "packageGrams": 50,
+   "packageLabel": "50g",
+   "country": null
+  },
+  {
+   "code": "4056489997672",
+   "name": "Sportyfeel Chrupiący baton proteinowy o smaku malinowym",
+   "proteinG": 32,
+   "kcal": 369,
+   "packageGrams": null,
+   "packageLabel": "50",
+   "country": null
+  },
+  {
+   "code": "4260744953437",
+   "name": "nu3 Fit protein bar carmel salé",
+   "proteinG": 32,
+   "kcal": 343,
+   "packageGrams": null,
+   "packageLabel": "55gr",
+   "country": null
+  },
+  {
+   "code": "4056489357117",
+   "name": "LIDL Protein Mix mit Nüssen & Sojabohnen",
+   "proteinG": 30.8,
+   "kcal": 587,
+   "packageGrams": 150,
+   "packageLabel": "150g",
+   "country": null
+  },
+  {
+   "code": "8718836394621",
+   "name": "Bodymass Protein Bar Muscle Mass",
+   "proteinG": 30,
+   "kcal": 401,
+   "packageGrams": null,
+   "packageLabel": "60 gram",
+   "country": null
+  },
+  {
+   "code": "8480000168832",
+   "name": "MERCADONA Crema de cacahuetes 100%",
+   "proteinG": 30,
+   "kcal": 607,
+   "packageGrams": 500,
+   "packageLabel": "500 g",
+   "country": null
+  },
+  {
+   "code": "4335619022607",
+   "name": "Marbel Bio Beurre de Cacahuète Crunchy",
+   "proteinG": 29.3,
+   "kcal": 657,
+   "packageGrams": 350,
+   "packageLabel": "350 g",
+   "country": null
+  },
+  {
+   "code": "4056489424925",
+   "name": "Maribel Smooth Peanut Butter",
+   "proteinG": 29.2,
+   "kcal": 661,
+   "packageGrams": 454,
+   "packageLabel": "454g",
+   "country": null
+  },
+  {
+   "code": "5013665115571",
+   "name": "Whole Earth Beurre de Cacahuètes 99% cacahuètes",
+   "proteinG": 29,
+   "kcal": 595,
+   "packageGrams": 340,
+   "packageLabel": "340 g e",
+   "country": null
+  },
+  {
+   "code": "5013665115557",
+   "name": "Whole Earth Beurre de cacahuètes crunchy",
+   "proteinG": 29,
+   "kcal": 595,
+   "packageGrams": 340,
+   "packageLabel": "340 g",
+   "country": null
+  },
+  {
+   "code": "3456300011494",
+   "name": "Léa Nature Pur beurre de cacahuète crunchy",
+   "proteinG": 29,
+   "kcal": 625,
+   "packageGrams": 350,
+   "packageLabel": "350 g",
+   "country": null
+  },
+  {
+   "code": "3256229878235",
+   "name": "Beurre de cacahuètes, 350g",
+   "proteinG": 29,
+   "kcal": 595,
+   "packageGrams": 350,
+   "packageLabel": "350 g",
+   "country": null
+  },
+  {
+   "code": "3770008500518",
+   "name": "Go Nuts Beurre de cacahuètes",
+   "proteinG": 28.3,
+   "kcal": 608,
+   "packageGrams": 500,
+   "packageLabel": "500G",
+   "country": null
+  },
+  {
+   "code": "3175681298521",
+   "name": "Gerlinéa Fit & Protein Chocolat noir & Cacahuète",
+   "proteinG": 28,
+   "kcal": 349,
+   "packageGrams": 45,
+   "packageLabel": "45 g",
+   "country": null
+  },
+  {
+   "code": "3270160860234",
+   "name": "Picard Saumon en croûte d'amande",
+   "proteinG": 28,
+   "kcal": 473,
+   "packageGrams": 350,
+   "packageLabel": "350 g e",
+   "country": null
+  },
+  {
+   "code": "3327272107969",
+   "name": "Menguy's Peanut 100%",
+   "proteinG": 28,
+   "kcal": 610,
+   "packageGrams": 454,
+   "packageLabel": "454 g",
+   "country": null
+  },
+  {
+   "code": "3390390000153",
+   "name": "Jean Hervé Purée de cacahuètes",
+   "proteinG": 28,
+   "kcal": 622,
+   "packageGrams": 350,
+   "packageLabel": "350 g",
+   "country": null
+  },
+  {
+   "code": "3390390000160",
+   "name": "Jean Hervé Purée cacahuète",
+   "proteinG": 28,
+   "kcal": 622,
+   "packageGrams": 700,
+   "packageLabel": "700 g",
+   "country": null
+  },
+  {
+   "code": "5013665108801",
+   "name": "Whole earth Crunchy Peanut Butter",
+   "proteinG": 27.7,
+   "kcal": 643,
+   "packageGrams": 454,
+   "packageLabel": "454g",
+   "country": null
+  },
+  {
+   "code": "8906021073400",
+   "name": "SO GOOD فول زبده",
+   "proteinG": 27.5,
+   "kcal": 648,
+   "packageGrams": 340,
+   "packageLabel": "340g",
+   "country": null
+  },
+  {
+   "code": "4056489424918",
+   "name": "McEnnedy Beurre de cacahuètes crunchy",
+   "proteinG": 27.3,
+   "kcal": 649,
+   "packageGrams": 454,
+   "packageLabel": "454g",
+   "country": null
+  },
+  {
+   "code": "2006050050833",
+   "name": "Aldi Beurre de cacahuètes Crunchy",
+   "proteinG": 27.3,
+   "kcal": 625,
+   "packageGrams": 600,
+   "packageLabel": "600 g",
+   "country": null
+  },
+  {
+   "code": "3760020507350",
+   "name": "Jardin Bio étic Pur beurre de cacahuète",
+   "proteinG": 27,
+   "kcal": 628,
+   "packageGrams": 350,
+   "packageLabel": "350 g",
+   "country": null
+  },
+  {
+   "code": "3608580157885",
+   "name": "Andros Be Nuts 100% Purée Cacahuète",
+   "proteinG": 27,
+   "kcal": 628,
+   "packageGrams": 320,
+   "packageLabel": "320 g",
+   "country": null
+  },
+  {
+   "code": "4056489340607",
+   "name": "Lidl pindakaas met stukjes noot",
+   "proteinG": 27,
+   "kcal": 640,
+   "packageGrams": null,
+   "packageLabel": "600 gram",
+   "country": null
+  },
+  {
+   "code": "4056489340591",
+   "name": "Maribel Manteiga de amendoim cremosa",
+   "proteinG": 27,
+   "kcal": 647,
+   "packageGrams": 600,
+   "packageLabel": "600g",
+   "country": null
+  },
+  {
+   "code": "5060367180758",
+   "name": "Pip & Nut Pip and Nut Crunchy Peanut Butter",
+   "proteinG": 27,
+   "kcal": 595,
+   "packageGrams": 1000,
+   "packageLabel": "1 kg",
+   "country": null
+  },
+  {
+   "code": "5060367181274",
+   "name": "pip & nut Smooth Peanut Butter",
+   "proteinG": 27,
+   "kcal": 593,
+   "packageGrams": 300,
+   "packageLabel": "300 g",
+   "country": null
+  },
+  {
+   "code": "3560071084042",
+   "name": "Carrefour Cacahuètes grillées sans sel ajouté.",
+   "proteinG": 27,
+   "kcal": 622,
+   "packageGrams": 200,
+   "packageLabel": "200 g",
+   "country": null
+  },
+  {
+   "code": "3250391910564",
+   "name": "Bouton d'or Cacahuètes grillées sans sel ajouté",
+   "proteinG": 27,
+   "kcal": 628,
+   "packageGrams": 200,
+   "packageLabel": "200 g",
+   "country": null
+  },
+  {
+   "code": "3564700537404",
+   "name": "Marque Repère Cacahuètes non salées",
+   "proteinG": 27,
+   "kcal": 621,
+   "packageGrams": 200,
+   "packageLabel": "200 g",
+   "country": null
+  },
+  {
+   "code": "3270720018082",
+   "name": "Daco Bello Amandes grillées sans sel ajouté",
+   "proteinG": 27,
+   "kcal": 625,
+   "packageGrams": 250,
+   "packageLabel": "250 g",
+   "country": null
+  },
+  {
+   "code": "5060367181311",
+   "name": "Dip & Nut Crunchy Peanut Butter",
+   "proteinG": 26.7,
+   "kcal": 593,
+   "packageGrams": 300,
+   "packageLabel": "300g",
+   "country": null
+  },
+  {
+   "code": "0096619450008",
+   "name": "Kirkland Signature Peanut Butter creamy natural",
+   "proteinG": 26.7,
+   "kcal": 600,
+   "packageGrams": 1000,
+   "packageLabel": "1 kg",
+   "country": null
+  },
+  {
+   "code": "3770008500037",
+   "name": "GO NUTS Beurre de cacahuètes Bio",
+   "proteinG": 26.1,
+   "kcal": 599,
+   "packageGrams": 500,
+   "packageLabel": "500 g",
+   "country": null
+  },
+  {
+   "code": "3770008500129",
+   "name": "Go Nuts Beurre de cacahuètes Bio",
+   "proteinG": 26.1,
+   "kcal": 599,
+   "packageGrams": 270,
+   "packageLabel": "270 g",
+   "country": null
+  },
+  {
+   "code": "3770008500174",
+   "name": "Go Nuts Beurre de cacahuètes Extra Crunchy",
+   "proteinG": 26.1,
+   "kcal": 599,
+   "packageGrams": 270,
+   "packageLabel": "270 g",
+   "country": null
+  },
+  {
+   "code": "8410076611277",
+   "name": "Nature Valley Barres protéinées aux chocolat et cranberries sans gluten",
+   "proteinG": 26,
+   "kcal": 471,
+   "packageGrams": 160,
+   "packageLabel": "4 x 40 g=160",
+   "country": null
+  },
+  {
+   "code": "8410076901033",
+   "name": "Nature Valley Barrette Proteiche al Caramello Salato",
+   "proteinG": 26,
+   "kcal": 495,
+   "packageGrams": 40,
+   "packageLabel": "40g",
+   "country": null
+  },
+  {
+   "code": "8007640982163",
+   "name": "Enervit SpA Barritas con proteínas sabor coco y chocolate",
+   "proteinG": 26,
+   "kcal": 403,
+   "packageGrams": 120,
+   "packageLabel": "120 g (3 x 40 g)",
+   "country": null
+  },
+  {
+   "code": "10671633",
+   "name": "Delpeyrat Saumon fumé",
+   "proteinG": 26,
+   "kcal": 123,
+   "packageGrams": null,
+   "packageLabel": "8 tranches",
+   "country": null
+  },
+  {
+   "code": "3760091727732",
+   "name": "ETHIQUABLE Beurre bio cacahuète",
+   "proteinG": 26,
+   "kcal": 622,
+   "packageGrams": 350,
+   "packageLabel": "350 g",
+   "country": null
+  },
+  {
+   "code": "3760278866964",
+   "name": "Ethiquable Beurre bio cacahuètes crunchy",
+   "proteinG": 26,
+   "kcal": 622,
+   "packageGrams": 350,
+   "packageLabel": "350 g",
+   "country": null
+  },
+  {
+   "code": "0037600106412",
+   "name": "Extra crunchy Skippy",
+   "proteinG": 26,
+   "kcal": 622,
+   "packageGrams": 340,
+   "packageLabel": "340 g",
+   "country": null
+  },
+  {
+   "code": "3256229878242",
+   "name": "Beurre de cacahuètes bio, 350g",
+   "proteinG": 26,
+   "kcal": 581,
+   "packageGrams": 350,
+   "packageLabel": "350 g",
+   "country": null
+  },
+  {
+   "code": "5600826202982",
+   "name": "PROZIS.COM S.A. (ZONA FRANCA DA MADEIRA) Peanut butter",
+   "proteinG": 26,
+   "kcal": 629,
+   "packageGrams": 500,
+   "packageLabel": "500 g",
+   "country": null
+  },
+  {
+   "code": "5014213711290",
+   "name": "Meridian Crunchy Peanut Butter",
+   "proteinG": 26,
+   "kcal": 606,
+   "packageGrams": 280,
+   "packageLabel": "280 g",
+   "country": null
+  },
+  {
+   "code": "4335619022591",
+   "name": "Bio Organic Beurre de cacahuètes Smooth",
+   "proteinG": 26,
+   "kcal": 625,
+   "packageGrams": 350,
+   "packageLabel": "350 g",
+   "country": null
+  },
+  {
+   "code": "8710411045058",
+   "name": "pcd Pate d'arachide",
+   "proteinG": 26,
+   "kcal": 634,
+   "packageGrams": 500,
+   "packageLabel": "500g",
+   "country": null
+  },
+  {
+   "code": "5014213711306",
+   "name": "Meridian Smooth Peanut Butter",
+   "proteinG": 26,
+   "kcal": 607,
+   "packageGrams": 280,
+   "packageLabel": "280 g",
+   "country": null
+  },
+  {
+   "code": "5600826203613",
+   "name": "Prozis Peanut butter",
+   "proteinG": 26,
+   "kcal": 626,
+   "packageGrams": 500,
+   "packageLabel": "500 g",
+   "country": null
+  },
+  {
+   "code": "20921002",
+   "name": "Alesto Cacahuètes grillées à sec",
+   "proteinG": 26,
+   "kcal": 600,
+   "packageGrams": 150,
+   "packageLabel": "150g",
+   "country": null
+  },
+  {
+   "code": "3336972211036",
+   "name": "Vico Amandes non grillées",
+   "proteinG": 26,
+   "kcal": 613,
+   "packageGrams": 180,
+   "packageLabel": "180 g",
+   "country": null
+  },
+  {
+   "code": "4008258074008",
+   "name": "Seeberger Amandes grillées",
+   "proteinG": 26,
+   "kcal": 653,
+   "packageGrams": 150,
+   "packageLabel": "150 g",
+   "country": null
+  },
+  {
+   "code": "4056489891529",
+   "name": "Crema di Arachidi Maribel",
+   "proteinG": 25.8,
+   "kcal": 617,
+   "packageGrams": 350,
+   "packageLabel": "350 g",
+   "country": null
+  },
+  {
+   "code": "8711299020953",
+   "name": "Natural hapiness Amandes",
+   "proteinG": 25.8,
+   "kcal": 610,
+   "packageGrams": 150,
+   "packageLabel": "150 g",
+   "country": null
+  },
+  {
+   "code": "8410076901026",
+   "name": "Nature Valley Protein Nut Bar Fruit & Chocolate",
+   "proteinG": 25.6,
+   "kcal": 429,
+   "packageGrams": 160,
+   "packageLabel": "160 g",
+   "country": null
+  },
+  {
+   "code": "8410076900302",
+   "name": "Nature Valley Protein Peanut & Chocolate",
+   "proteinG": 25.6,
+   "kcal": 489,
+   "packageGrams": 40,
+   "packageLabel": "40g",
+   "country": null
+  },
+  {
+   "code": "8410076610355",
+   "name": "Nature Valley Protein Peanut and Chocolate",
+   "proteinG": 25.6,
+   "kcal": 488,
+   "packageGrams": 40,
+   "packageLabel": "40 g",
+   "country": null
+  },
+  {
+   "code": "5057373699688",
+   "name": "Tesco 2 Boneless Salmon Fillets",
+   "proteinG": 25.3,
+   "kcal": 209,
+   "packageGrams": 260,
+   "packageLabel": "260g",
+   "country": null
+  },
+  {
+   "code": "8480000348654",
+   "name": "MERCADONA Almendra al natural - Hacendado",
+   "proteinG": 25.2,
+   "kcal": 642,
+   "packageGrams": 200,
+   "packageLabel": "200 g",
+   "country": null
+  },
+  {
+   "code": "7612100004128",
+   "name": "Isostar High protein 25*",
+   "proteinG": 25,
+   "kcal": 389,
+   "packageGrams": 105,
+   "packageLabel": "105 g (3 * 35 g)",
+   "country": null
+  },
+  {
+   "code": "3327272107259",
+   "name": "Menguy's Beurre de cacahuètes creamy",
+   "proteinG": 25,
+   "kcal": 629,
+   "packageGrams": 454,
+   "packageLabel": "454 g",
+   "country": null
+  },
+  {
+   "code": "3760091721747",
+   "name": "Ethiquable Beurre de cacahuètes du Nicaragua",
+   "proteinG": 25,
+   "kcal": 576,
+   "packageGrams": 350,
+   "packageLabel": "350 g",
+   "country": null
+  },
+  {
+   "code": "3327272107266",
+   "name": "Menguy's Beurre de cacahuètes crunchy",
+   "proteinG": 25,
+   "kcal": 629,
+   "packageGrams": 454,
+   "packageLabel": "454 g",
+   "country": null
+  },
+  {
+   "code": "3545360020659",
+   "name": "MANDY'S Beurre de cacahuètes Bio",
+   "proteinG": 25,
+   "kcal": 583,
+   "packageGrams": 340,
+   "packageLabel": "340 g",
+   "country": null
+  },
+  {
+   "code": "3502490099177",
+   "name": "maître prunille Amandes grillées sans sel",
+   "proteinG": 25,
+   "kcal": 637,
+   "packageGrams": 250,
+   "packageLabel": "250g",
+   "country": null
+  },
+  {
+   "code": "3270720000308",
+   "name": "Daco Bello La croquante",
+   "proteinG": 25,
+   "kcal": 616,
+   "packageGrams": 125,
+   "packageLabel": "125 g e",
+   "country": null
+  },
+  {
+   "code": "8711299021028",
+   "name": "NATURAL HAPPINESS Seed mix mélange de graines",
+   "proteinG": 24.8,
+   "kcal": 618,
+   "packageGrams": null,
+   "packageLabel": "125 gram",
+   "country": null
+  },
+  {
+   "code": "20615420",
+   "name": "Alesto Paahdettu maapähkinä",
+   "proteinG": 24.7,
+   "kcal": 626,
+   "packageGrams": null,
+   "packageLabel": "200 gram",
+   "country": null
+  },
+  {
+   "code": "20724696",
+   "name": "Alesto Amandes décortiquées",
+   "proteinG": 24.5,
+   "kcal": 621,
+   "packageGrams": 200,
+   "packageLabel": "200 g",
+   "country": null
+  },
+  {
+   "code": "4056489440116",
+   "name": "Alesto Amandes Décortiquées",
+   "proteinG": 24.5,
+   "kcal": 621,
+   "packageGrams": 500,
+   "packageLabel": "500g",
+   "country": null
+  },
+  {
+   "code": "20014384",
+   "name": "PEANUTS ROASTED & SALTED",
+   "proteinG": 24.4,
+   "kcal": 619,
+   "packageGrams": 250,
+   "packageLabel": "250 g",
+   "country": null
+  },
+  {
+   "code": "8198701234564",
+   "name": "Pâte d'arachide",
+   "proteinG": 24.3,
+   "kcal": 582,
+   "packageGrams": 400,
+   "packageLabel": "400g",
+   "country": null
+  },
+  {
+   "code": "6111262821150",
+   "name": "Dulcetto Pindakaas",
+   "proteinG": 24.3,
+   "kcal": 583,
+   "packageGrams": null,
+   "packageLabel": "",
+   "country": null
+  },
+  {
+   "code": "20052713",
+   "name": "Belbake Mandorle intere",
+   "proteinG": 24.2,
+   "kcal": 645,
+   "packageGrams": 190,
+   "packageLabel": "190g",
+   "country": null
+  },
+  {
+   "code": "3175681779907",
+   "name": "Gerlinéa Repas Équilibré barre saveur Pomme Framboise",
+   "proteinG": 24,
+   "kcal": 332,
+   "packageGrams": 360,
+   "packageLabel": "360 g",
+   "country": null
+  },
+  {
+   "code": "26015361",
+   "name": "Les Doris Filet Saumon sauce citron",
+   "proteinG": 24,
+   "kcal": 156,
+   "packageGrams": 190,
+   "packageLabel": "190 g",
+   "country": null
+  },
+  {
+   "code": "3033610062509",
+   "name": "Labeyrie Saumon Fume Sauvage Intense",
+   "proteinG": 24,
+   "kcal": 123,
+   "packageGrams": 150,
+   "packageLabel": "150 g",
+   "country": null
+  },
+  {
+   "code": "5900617012197",
+   "name": "Sante Masło orzechowe",
+   "proteinG": 24,
+   "kcal": 616,
+   "packageGrams": 350,
+   "packageLabel": "350 g",
+   "country": null
+  },
+  {
+   "code": "3456300015324",
+   "name": "Jardin Bio étic Beurre de Cacahuète",
+   "proteinG": 24,
+   "kcal": 620,
+   "packageGrams": 500,
+   "packageLabel": "500 g",
+   "country": null
+  },
+  {
+   "code": "4006040000563",
+   "name": "Rapunzel Beurre de cacahuète Crunchy",
+   "proteinG": 24,
+   "kcal": 640,
+   "packageGrams": 500,
+   "packageLabel": "500 g e",
+   "country": null
+  },
+  {
+   "code": "4008258065013",
+   "name": "Seeberger Mandeln",
+   "proteinG": 24,
+   "kcal": 619,
+   "packageGrams": 200,
+   "packageLabel": "200g",
+   "country": null
+  },
+  {
+   "code": "20558123",
+   "name": "Alesto Amandes grillées salées",
+   "proteinG": 24,
+   "kcal": 643,
+   "packageGrams": 150,
+   "packageLabel": "150g",
+   "country": null
+  },
+  {
+   "code": "4004980401907",
+   "name": "ültje Erdnüsse geröstet & gesalzen",
+   "proteinG": 24,
+   "kcal": 621,
+   "packageGrams": 180,
+   "packageLabel": "180g",
+   "country": null
+  },
+  {
+   "code": "4335619014442",
+   "name": "LIDL Pistaches de Californie grillées et salées",
+   "proteinG": 23.6,
+   "kcal": 614,
+   "packageGrams": null,
+   "packageLabel": "250 gram",
+   "country": null
+  },
+  {
+   "code": "20353032",
+   "name": "Mélange de noix et d'olives",
+   "proteinG": 23.5,
+   "kcal": 645,
+   "packageGrams": 200,
+   "packageLabel": "200 g",
+   "country": null
+  },
+  {
+   "code": "20332419",
+   "name": "Nautica Salmone selvaggio rosso affumicato Sockeye",
+   "proteinG": 23.4,
+   "kcal": 117,
+   "packageGrams": 100,
+   "packageLabel": "100g",
+   "country": null
+  },
+  {
+   "code": "20474478",
+   "name": "Mcennedy Peanut Butter",
+   "proteinG": 23.1,
+   "kcal": 653,
+   "packageGrams": null,
+   "packageLabel": "650 gr",
+   "country": null
+  },
+  {
+   "code": "5000159527118",
+   "name": "Be Kind Protein Dark Chocolate Nut",
+   "proteinG": 23,
+   "kcal": 536,
+   "packageGrams": null,
+   "packageLabel": "50 gm",
+   "country": null
+  },
+  {
+   "code": "3033610071303",
+   "name": "Labeyrie SAUMON ATLANTIQUE FUME NORVÈGE",
+   "proteinG": 23,
+   "kcal": 172,
+   "packageGrams": 75,
+   "packageLabel": "75 g",
+   "country": null
+  },
+  {
+   "code": "3250391402748",
+   "name": "Odyssee Saumon fumé BIO 4tr - 120g",
+   "proteinG": 23,
+   "kcal": 191,
+   "packageGrams": 120,
+   "packageLabel": "120 g",
+   "country": null
+  },
+  {
+   "code": "3560070235841",
+   "name": "Carrefour Saumon au naturel",
+   "proteinG": 23,
+   "kcal": 191,
+   "packageGrams": 190,
+   "packageLabel": "190 g",
+   "country": null
+  },
+  {
+   "code": "3067163660820",
+   "name": "Delpeyrat Saumon fume",
+   "proteinG": 23,
+   "kcal": 176,
+   "packageGrams": 120,
+   "packageLabel": "120 g",
+   "country": null
+  },
+  {
+   "code": "3263670730012",
+   "name": "Connétable Saumon sauvage au naturel",
+   "proteinG": 23,
+   "kcal": 109,
+   "packageGrams": 112,
+   "packageLabel": "160 g (112 g)",
+   "country": null
+  },
+  {
+   "code": "4335619014459",
+   "name": "Alesto Kalifornische Pistazien geröstet",
+   "proteinG": 23,
+   "kcal": 623,
+   "packageGrams": 250,
+   "packageLabel": "250g",
+   "country": null
+  },
+  {
+   "code": "8480000348203",
+   "name": "Hacendado Cacahuete frito con sal",
+   "proteinG": 23,
+   "kcal": 600,
+   "packageGrams": 250,
+   "packageLabel": "250 g",
+   "country": null
+  },
+  {
+   "code": "5053827189927",
+   "name": "Kellogg's Special K High Protein",
+   "proteinG": 22.9,
+   "kcal": 421,
+   "packageGrams": 112,
+   "packageLabel": "112g",
+   "country": null
+  },
+  {
+   "code": "8594014861556",
+   "name": "Nutrend Protein Bar",
+   "proteinG": 22.8,
+   "kcal": 426,
+   "packageGrams": 55,
+   "packageLabel": "55 g",
+   "country": null
+  },
+  {
+   "code": "20442484",
+   "name": "natürlich für uns Bio Räucherlachs",
+   "proteinG": 22.8,
+   "kcal": 165,
+   "packageGrams": 90,
+   "packageLabel": "90g",
+   "country": null
+  },
+  {
+   "code": "8480000862020",
+   "name": "MERCADONA Pistacho tostado sal",
+   "proteinG": 22.8,
+   "kcal": 616,
+   "packageGrams": 250,
+   "packageLabel": "250 g",
+   "country": null
+  },
+  {
+   "code": "20559625",
+   "name": "Alesto Mélange de noix et pistaches",
+   "proteinG": 22.8,
+   "kcal": 598,
+   "packageGrams": 200,
+   "packageLabel": "200g",
+   "country": null
+  },
+  {
+   "code": "5059697687150",
+   "name": "Tesco Smoked Salmon",
+   "proteinG": 22.3,
+   "kcal": 185,
+   "packageGrams": 100,
+   "packageLabel": "100g",
+   "country": null
+  },
+  {
+   "code": "4056489138662",
+   "name": "nautica Émincés de Saumon Fumé 5 Baies & Coriandre",
+   "proteinG": 22.3,
+   "kcal": 215,
+   "packageGrams": 100,
+   "packageLabel": "100 g",
+   "country": null
+  },
+  {
+   "code": "3270720005723",
+   "name": "Daco Bello 4 graines grillées sans sel ajouté",
+   "proteinG": 22.2,
+   "kcal": 625,
+   "packageGrams": 175,
+   "packageLabel": "175 g",
+   "country": null
+  },
+  {
+   "code": "20955427",
+   "name": "Müller Tvarohová tyčinka Protein",
+   "proteinG": 22,
+   "kcal": 323,
+   "packageGrams": 40,
+   "packageLabel": "40g",
+   "country": null
+  },
+  {
+   "code": "5600961112566",
+   "name": "Prozis Protein Granola Chocolate & Hazelnuts",
+   "proteinG": 22,
+   "kcal": 445,
+   "packageGrams": 275,
+   "packageLabel": "275 g",
+   "country": null
+  },
+  {
+   "code": "3175681807891",
+   "name": "Gerlinea Barre Céréales Pépites de chocolat",
+   "proteinG": 22,
+   "kcal": 346,
+   "packageGrams": 372,
+   "packageLabel": "372 g",
+   "country": null
+  },
+  {
+   "code": "3760253430623",
+   "name": "EUROPEENNE DE LA MER SAUMON ATL ELEVE EN NORVEGE FUME",
+   "proteinG": 22,
+   "kcal": 205,
+   "packageGrams": null,
+   "packageLabel": "120",
+   "country": null
+  },
+  {
+   "code": "3033610069492",
+   "name": "Labeyrie Saumon fumé bio",
+   "proteinG": 22,
+   "kcal": 173,
+   "packageGrams": 110,
+   "packageLabel": "110 g",
+   "country": null
+  },
+  {
+   "code": "3560071435394",
+   "name": "Carrefour Discount Saumon fumé",
+   "proteinG": 22,
+   "kcal": 195,
+   "packageGrams": 200,
+   "packageLabel": "200 g",
+   "country": null
+  },
+  {
+   "code": "3033610062707",
+   "name": "Labeyrie SAUMON ATLANTIQUE BIO FUME AU BOIS DE HÊTRE",
+   "proteinG": 22,
+   "kcal": 198,
+   "packageGrams": 65,
+   "packageLabel": "65 g",
+   "country": null
+  },
+  {
+   "code": "3564707100113",
+   "name": "Bio Village Saumon atlantique fumé 4 tranches",
+   "proteinG": 22,
+   "kcal": 178,
+   "packageGrams": 120,
+   "packageLabel": "120 g",
+   "country": null
+  },
+  {
+   "code": "3033610076971",
+   "name": "Labeyrie Saumon fumé Le Norvège",
+   "proteinG": 22,
+   "kcal": 198,
+   "packageGrams": 130,
+   "packageLabel": "4 tranches (130 g)",
+   "country": null
+  },
+  {
+   "code": "3256227697814",
+   "name": "Saumon fumé 4 tranches",
+   "proteinG": 22,
+   "kcal": 188,
+   "packageGrams": 120,
+   "packageLabel": "120 g",
+   "country": null
+  },
+  {
+   "code": "3033610056829",
+   "name": "Labeyrie Saumon fumé d'Ecosse",
+   "proteinG": 22,
+   "kcal": 176,
+   "packageGrams": 130,
+   "packageLabel": "130 g",
+   "country": null
+  },
+  {
+   "code": "8480000226129",
+   "name": "MERCADONA Taquitos de salmón ahumado",
+   "proteinG": 22,
+   "kcal": 171,
+   "packageGrams": null,
+   "packageLabel": "100",
+   "country": null
+  },
+  {
+   "code": "3560071565176",
+   "name": "Carrefour Saumon Fumé Bio",
+   "proteinG": 22,
+   "kcal": 198,
+   "packageGrams": 110,
+   "packageLabel": "110 g",
+   "country": null
+  },
+  {
+   "code": "3245412477478",
+   "name": "Carrefour Saumon fumé élevé en norvège",
+   "proteinG": 22,
+   "kcal": 178,
+   "packageGrams": 140,
+   "packageLabel": "140 g",
+   "country": null
+  },
+  {
+   "code": "3245411891800",
+   "name": "Selection Emincés de Saumon fumé aux 5 baies",
+   "proteinG": 22,
+   "kcal": 216,
+   "packageGrams": 100,
+   "packageLabel": "100 g",
+   "country": null
+  },
+  {
+   "code": "3033610072010",
+   "name": "Labeyrie SAUMON ATLANTIQUE D'ECOSSE FUME 2 TRANCHES",
+   "proteinG": 22,
+   "kcal": 198,
+   "packageGrams": 75,
+   "packageLabel": "75 g",
+   "country": null
+  },
+  {
+   "code": "3263670052527",
+   "name": "Chancerelle Saumon Atlantique au Naturel sans Peau sans arêtes",
+   "proteinG": 22,
+   "kcal": 168,
+   "packageGrams": 160,
+   "packageLabel": "160 g - 112 g égoutté",
+   "country": null
+  },
+  {
+   "code": "3245412729829",
+   "name": "Carrefour Saumon fumé élevé en écosse",
+   "proteinG": 22,
+   "kcal": 183,
+   "packageGrams": 140,
+   "packageLabel": "140 g",
+   "country": null
+  },
+  {
+   "code": "3033610056812",
+   "name": "Labeyrie SAUMON ATLANTIQUE FUME AU BOIS DE HETRE -25% SEL",
+   "proteinG": 22,
+   "kcal": 198,
+   "packageGrams": 130,
+   "packageLabel": "130 g",
+   "country": null
+  },
+  {
+   "code": "3038680009409",
+   "name": "Delpierre Saumon fumé norvège",
+   "proteinG": 22,
+   "kcal": 178,
+   "packageGrams": 120,
+   "packageLabel": "120 g",
+   "country": null
+  },
+  {
+   "code": "3760253430630",
+   "name": "Petit Navire SAUMON ATL ELEVE EN ECOSSE FUME",
+   "proteinG": 22,
+   "kcal": 203,
+   "packageGrams": 120,
+   "packageLabel": "120 g",
+   "country": null
+  },
+  {
+   "code": "3608580124108",
+   "name": "Andros Be Nuts! Pâte à tartiner Cacahuète",
+   "proteinG": 22,
+   "kcal": 612,
+   "packageGrams": 325,
+   "packageLabel": "325 g",
+   "country": null
+  },
+  {
+   "code": "3608580124078",
+   "name": "Andros Be Nuts! Crémeux",
+   "proteinG": 22,
+   "kcal": 624,
+   "packageGrams": 525,
+   "packageLabel": "525 g",
+   "country": null
+  },
+  {
+   "code": "3608580144052",
+   "name": "Andros Pate à tartiner cacahuète",
+   "proteinG": 22,
+   "kcal": 612,
+   "packageGrams": 525,
+   "packageLabel": "525 g",
+   "country": null
+  },
+  {
+   "code": "8480000233653",
+   "name": "Mercadona Anacardo Caju Natural",
+   "proteinG": 21.9,
+   "kcal": 604,
+   "packageGrams": 200,
+   "packageLabel": "200 g",
+   "country": null
+  },
+  {
+   "code": "8480000861900",
+   "name": "MERCADONA Pistacho tostado 0% sal",
+   "proteinG": 21.6,
+   "kcal": 616,
+   "packageGrams": 250,
+   "packageLabel": "250 g",
+   "country": null
+  },
+  {
+   "code": "20174552",
+   "name": "Ocean Sea Pavés de saumon Rose du Pacifique",
+   "proteinG": 21,
+   "kcal": 107,
+   "packageGrams": 200,
+   "packageLabel": "200g",
+   "country": null
+  },
+  {
+   "code": "20296476",
+   "name": "Landfein Pavés de saumon ASC",
+   "proteinG": 21,
+   "kcal": 230,
+   "packageGrams": 500,
+   "packageLabel": "500g",
+   "country": null
+  },
+  {
+   "code": "26066301",
+   "name": "Golden seafood (Aldi) Saumon atlantique fumé",
+   "proteinG": 21,
+   "kcal": 165,
+   "packageGrams": 200,
+   "packageLabel": "200 g (6 à 10 tranches)",
+   "country": null
+  },
+  {
+   "code": "4061458027458",
+   "name": "Almare Norwegischer Räucherlachs in Scheiben",
+   "proteinG": 21,
+   "kcal": 174,
+   "packageGrams": 220,
+   "packageLabel": "220 g",
+   "country": null
+  },
+  {
+   "code": "3256229788428",
+   "name": "Pavé de saumon, Salmo salar, avec peau, élevé en Norvege, 2 pièces,barquette 250g",
+   "proteinG": 21,
+   "kcal": 223,
+   "packageGrams": 250,
+   "packageLabel": "250 g",
+   "country": null
+  },
+  {
+   "code": "4057295250227",
+   "name": "ArcticFish Pures Grün Räucherlachs",
+   "proteinG": 21,
+   "kcal": 213,
+   "packageGrams": 100,
+   "packageLabel": "100g",
+   "country": null
+  },
+  {
+   "code": "3608580124047",
+   "name": "Andros Be Nuts ! - Pâte à tartiner Cacahuète",
+   "proteinG": 21,
+   "kcal": 614,
+   "packageGrams": 325,
+   "packageLabel": "325 g",
+   "country": null
+  },
+  {
+   "code": "3502490099153",
+   "name": "Maitre Prunille Noix de cajou grillées sans sel",
+   "proteinG": 21,
+   "kcal": 621,
+   "packageGrams": 200,
+   "packageLabel": "200 g",
+   "country": null
+  },
+  {
+   "code": "3270160741939",
+   "name": "Picard Pavés de saumon Atlantique Bio",
+   "proteinG": 20.6,
+   "kcal": 176,
+   "packageGrams": 200,
+   "packageLabel": "200 g",
+   "country": null
+  },
+  {
+   "code": "4056489530268",
+   "name": "LIDL Salmon ahumado",
+   "proteinG": 20.5,
+   "kcal": 151,
+   "packageGrams": null,
+   "packageLabel": "200 gram",
+   "country": null
+  },
+  {
+   "code": "4056489452676",
+   "name": "Lidl Bio-Räucherlachs, trockengesalzen, in Scheiben geschnitten",
+   "proteinG": 20.5,
+   "kcal": 154,
+   "packageGrams": 100,
+   "packageLabel": "100g",
+   "country": null
+  },
+  {
+   "code": "20267605",
+   "name": "Alesto Cashews",
+   "proteinG": 20.5,
+   "kcal": 600,
+   "packageGrams": 200,
+   "packageLabel": "200 g",
+   "country": null
+  },
+  {
+   "code": "40893532",
+   "name": "Cashew Nuts XXL",
+   "proteinG": 20.5,
+   "kcal": 600,
+   "packageGrams": 500,
+   "packageLabel": "500 g",
+   "country": null
+  },
+  {
+   "code": "20034658",
+   "name": "Lighthouse Bay Saumon fumé",
+   "proteinG": 20.4,
+   "kcal": 178,
+   "packageGrams": 200,
+   "packageLabel": "200g",
+   "country": null
+  },
+  {
+   "code": "20177089",
+   "name": "nautica Salmon ahumado en lonchas",
+   "proteinG": 20.4,
+   "kcal": 162,
+   "packageGrams": null,
+   "packageLabel": "100 gram",
+   "country": null
+  },
+  {
+   "code": "5000171010025",
+   "name": "John West Wild Pacific Red Salmon",
+   "proteinG": 20.4,
+   "kcal": 151,
+   "packageGrams": 210,
+   "packageLabel": "210 g",
+   "country": null
+  },
+  {
+   "code": "20047238",
+   "name": "Alesto Nussmix",
+   "proteinG": 20.4,
+   "kcal": 646,
+   "packageGrams": null,
+   "packageLabel": "200 gram",
+   "country": null
+  },
+  {
+   "code": "8480000868091",
+   "name": "MERCADONA Cocktail Natural",
+   "proteinG": 20.4,
+   "kcal": 636,
+   "packageGrams": 200,
+   "packageLabel": "200g",
+   "country": null
+  },
+  {
+   "code": "20816445",
+   "name": "Mixed Nuts",
+   "proteinG": 20.4,
+   "kcal": 646,
+   "packageGrams": 500,
+   "packageLabel": "500 g",
+   "country": null
+  },
+  {
+   "code": "8711299017229",
+   "name": "Natural Happiness Energy Nut Mix",
+   "proteinG": 20.3,
+   "kcal": 471,
+   "packageGrams": 300,
+   "packageLabel": "300 g",
+   "country": null
+  },
+  {
+   "code": "6111246721957",
+   "name": "Le berger From blanc Nat",
+   "proteinG": 20,
+   "kcal": 235,
+   "packageGrams": 450,
+   "packageLabel": "450g",
+   "country": null
+  },
+  {
+   "code": "3523230028431",
+   "name": "Soignon La bûche Sainte-Maure (Poitou-Charentes",
+   "proteinG": 20,
+   "kcal": 291,
+   "packageGrams": 200,
+   "packageLabel": "200 g e",
+   "country": null
+  },
+  {
+   "code": "3228021170039",
+   "name": "PRÉSIDENT PRESIDENT CAMEMBERT 250g",
+   "proteinG": 20,
+   "kcal": 269,
+   "packageGrams": 250,
+   "packageLabel": "0.25 kg",
+   "country": null
+  },
+  {
+   "code": "5900617013064",
+   "name": "Sante Baton Proteinowy Go On Kakaowy",
+   "proteinG": 20,
+   "kcal": 416,
+   "packageGrams": 50,
+   "packageLabel": "50 g",
+   "country": null
+  },
+  {
+   "code": "3175681186583",
+   "name": "Gerlinea Barre HP chocolat",
+   "proteinG": 20,
+   "kcal": 345,
+   "packageGrams": 310,
+   "packageLabel": "310 g",
+   "country": null
+  },
+  {
+   "code": "5900617013101",
+   "name": "GO ON Baton protein waniliowy",
+   "proteinG": 20,
+   "kcal": 406,
+   "packageGrams": 50,
+   "packageLabel": "50g",
+   "country": null
+  },
+  {
+   "code": "3560071525521",
+   "name": "CARREFOUR FRANCE Crunchy Chocolate Protein Bar",
+   "proteinG": 20,
+   "kcal": 577,
+   "packageGrams": 128,
+   "packageLabel": "128 g (4 x 32 g)",
+   "country": null
+  },
+  {
+   "code": "5900617013149",
+   "name": "NZ PROTEIN PROTEIN Cranberry Coji & Chocolate",
+   "proteinG": 20,
+   "kcal": 410,
+   "packageGrams": null,
+   "packageLabel": "",
+   "country": null
+  }
+ ]
+}
