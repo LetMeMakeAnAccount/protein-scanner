@@ -1,11 +1,12 @@
 import React from "react";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { installMemoryStorage, makeFood, makeNutrition, offSource } from "./testUtils";
 
 installMemoryStorage();
 
 import Home from "../../src/app/page";
+import { MARKET_KEY } from "../../src/client/market";
 
 type Observation = {
   price: number;
@@ -44,9 +45,8 @@ function jsonResponse(body: unknown, status = 200) {
 type ApiOptions = {
   search?: unknown[];
   lookup?: unknown[];
-  prices?: Observation[] | null;
+  prices?: Observation[];
   pricesStatus?: number;
-  pricesError?: { code: string; message: string };
 };
 
 function stubApi(options: ApiOptions = {}) {
@@ -61,10 +61,7 @@ function stubApi(options: ApiOptions = {}) {
     if (url.includes("/api/prices")) {
       if (options.pricesStatus && options.pricesStatus >= 400) {
         return jsonResponse(
-          {
-            ok: false,
-            error: options.pricesError ?? { code: "unavailable", message: "Prices are unavailable" },
-          },
+          { ok: false, error: { code: "unavailable", message: "Price service unavailable" } },
           options.pricesStatus,
         );
       }
@@ -80,25 +77,31 @@ function openMarketplace() {
   fireEvent.click(screen.getByRole("tab", { name: "Marketplace" }));
 }
 
-async function searchFor(query: string) {
+function searchFor(query: string) {
   fireEvent.change(screen.getByLabelText(/search open food facts/i), { target: { value: query } });
   fireEvent.click(screen.getByRole("button", { name: /^search$/i }));
 }
 
-async function lookupFor(barcode: string) {
+function lookupFor(barcode: string) {
   fireEvent.change(screen.getByLabelText(/^barcode$/i), { target: { value: barcode } });
-  fireEvent.click(screen.getByRole("button", { name: /look up barcode/i }));
+  fireEvent.click(screen.getByRole("button", { name: /^look up$/i }));
 }
 
-function cardFor(name: string): HTMLElement {
+function rowFor(name: string): HTMLElement {
   const heading = screen.getByRole("heading", { name });
-  const card = heading.closest("li");
-  if (!card) throw new Error(`No card found for ${name}`);
-  return card as HTMLElement;
+  const row = heading.closest("li");
+  if (!row) throw new Error(`No row found for ${name}`);
+  return row as HTMLElement;
 }
 
-function selectCard(name: string) {
-  fireEvent.click(screen.getByRole("button", { name: new RegExp(`view community prices for ${name}`, "i") }));
+function cell(row: HTMLElement, column: string): HTMLElement {
+  const found = row.querySelector(`[data-column="${column}"]`);
+  if (!found) throw new Error(`No ${column} cell in row`);
+  return found as HTMLElement;
+}
+
+function addResult(name: string) {
+  fireEvent.click(screen.getByRole("button", { name: new RegExp(`add ${name} to list`, "i") }));
 }
 
 beforeEach(() => {
@@ -112,27 +115,60 @@ afterEach(() => {
 });
 
 describe("Marketplace tab", () => {
-  it("sits after Progress and searches food by name into result cards", async () => {
-    stubApi({ search: [{ food, nutrition }] });
+  it("keeps only the fields, the short price note and the Open Prices credit", () => {
+    stubApi();
     render(<Home />);
-
-    const tabs = screen.getAllByRole("tab").map((tab) => tab.textContent);
-    expect(tabs).toEqual(["Scan", "Diary", "Progress", "Marketplace"]);
-
     openMarketplace();
+
     expect(screen.getByRole("heading", { name: "Marketplace" })).toBeInTheDocument();
+    expect(screen.getByLabelText(/search open food facts/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^barcode$/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Search" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Look up" })).toBeInTheDocument();
+    expect(screen.getByText("Community prices, not live shelf prices.")).toBeInTheDocument();
+    expect(screen.getByText(/Open Database License \(ODbL\)/)).toBeInTheDocument();
 
-    await searchFor("greek yogurt");
-    await screen.findByRole("heading", { name: "Greek Yogurt" });
-
-    const card = cardFor("Greek Yogurt");
-    expect(card).toHaveTextContent("Open Food Facts");
-    expect(card).toHaveTextContent("10 g protein per 100 g");
-    expect(card).toHaveTextContent("60 kcal per 100 g");
-    expect(card).toHaveTextContent("012345678905");
+    expect(screen.queryByText(/browse, don't buy/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/find a packaged food/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/community prices are past reports/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/start with a name or barcode/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/opens the retailer's search/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/can't work out protein per dollar/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/no community price/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/newest observation only/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Results" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Saved" })).not.toBeInTheDocument();
   });
 
-  it("fetches prices after a barcode lookup and lists store, location, price, date and discount", async () => {
+  it("shows search results in compact columns and adds one to the saved list with its price", async () => {
+    const fetchMock = stubApi({ search: [{ food, nutrition }], prices: [observation()] });
+    render(<Home />);
+    openMarketplace();
+
+    await searchFor("greek yogurt");
+    const result = await screen.findByRole("heading", { name: "Greek Yogurt" });
+    const resultRow = result.closest("li") as HTMLElement;
+    expect(cell(resultRow, "protein")).toHaveTextContent("10 g");
+    expect(cell(resultRow, "kcal")).toHaveTextContent("60 kcal");
+    expect(cell(resultRow, "price")).toHaveTextContent("—");
+    expect(cell(resultRow, "per-dollar")).toHaveTextContent("—");
+    expect(cell(resultRow, "per-kcal")).toHaveTextContent("16.67 g/100 kcal");
+
+    addResult("Greek Yogurt");
+
+    await waitFor(() => expect(cell(rowFor("Greek Yogurt"), "price")).toHaveTextContent("4.5 USD"));
+    const savedRow = rowFor("Greek Yogurt");
+    expect(cell(savedRow, "protein")).toHaveTextContent("10 g");
+    expect(cell(savedRow, "kcal")).toHaveTextContent("60 kcal");
+    expect(cell(savedRow, "per-dollar")).toHaveTextContent("22.22 g/USD");
+    expect(cell(savedRow, "per-kcal")).toHaveTextContent("16.67 g/100 kcal");
+
+    expect(await screen.findByText("Whole Foods")).toBeInTheDocument();
+    expect(JSON.parse(localStorage.getItem(MARKET_KEY) ?? "[]")).toHaveLength(1);
+    expect(fetchMock.mock.calls.some(([url]) => String(url) === "/api/prices?barcode=012345678905")).toBe(true);
+  });
+
+  it("adds barcode results automatically, shows observations, date and discount, and dedupes", async () => {
     const second = observation({
       price: 5,
       store: null,
@@ -147,77 +183,19 @@ describe("Marketplace tab", () => {
     openMarketplace();
 
     await lookupFor("012345678905");
-    await screen.findByRole("heading", { name: "Greek Yogurt" });
 
-    expect(fetchMock.mock.calls.some(([url]) => String(url).includes("/api/prices"))).toBe(false);
+    const row = await screen.findByRole("heading", { name: "Greek Yogurt" });
+    expect(row).toBeInTheDocument();
+    await waitFor(() => expect(cell(rowFor("Greek Yogurt"), "price")).toHaveTextContent("4.5 USD"));
 
-    selectCard("Greek Yogurt");
-    expect(await screen.findByText("Community price observations (Open Prices)")).toBeInTheDocument();
     expect(await screen.findByText("Whole Foods")).toBeInTheDocument();
-
-    expect(screen.getByText("4.5 USD")).toBeInTheDocument();
-    expect(screen.getByText("5 USD")).toBeInTheDocument();
     expect(screen.getByText("Austin, United States")).toBeInTheDocument();
-    expect(screen.getByText("Observed 2026-10-01")).toBeInTheDocument();
-    expect(screen.getByText("Date unknown")).toBeInTheDocument();
-    expect(screen.getByText("Store unknown")).toBeInTheDocument();
+    expect(screen.getByText("2026-10-01")).toBeInTheDocument();
     expect(screen.getByText("Discounted")).toBeInTheDocument();
-    expect(screen.getByText(/Open Database License \(ODbL\)/)).toBeInTheDocument();
-    expect(screen.getByText("Protein per dollar")).toBeInTheDocument();
-    expect(screen.getByText(/22\.22 g\/USD/)).toBeInTheDocument();
-
-    expect(fetchMock.mock.calls.some(([url]) => String(url) === "/api/prices?barcode=012345678905")).toBe(true);
-    expect(
-      fetchMock.mock.calls.some(([url]) => String(url) === "/api/foods/lookup?barcode=012345678905"),
-    ).toBe(true);
-  });
-
-  it("says when there are no community prices instead of showing a figure", async () => {
-    stubApi({ lookup: [{ food, nutrition }], prices: [] });
-    render(<Home />);
-    openMarketplace();
-
-    await lookupFor("012345678905");
-    await screen.findByRole("heading", { name: "Greek Yogurt" });
-    selectCard("Greek Yogurt");
-
-    expect(await screen.findByText("No community price for this item yet.")).toBeInTheDocument();
-    expect(screen.queryByText("Protein per dollar")).not.toBeInTheDocument();
-  });
-
-  it("shows an honest message when prices are unavailable (503)", async () => {
-    stubApi({
-      lookup: [{ food, nutrition }],
-      pricesStatus: 503,
-      pricesError: { code: "unavailable", message: "Price service unavailable" },
-    });
-    render(<Home />);
-    openMarketplace();
-
-    await lookupFor("012345678905");
-    await screen.findByRole("heading", { name: "Greek Yogurt" });
-    selectCard("Greek Yogurt");
-
-    expect(await screen.findByRole("alert")).toHaveTextContent("Prices are unavailable right now.");
-    expect(screen.queryByText("No community price for this item yet.")).not.toBeInTheDocument();
-    expect(screen.queryByText("Protein per dollar")).not.toBeInTheDocument();
-  });
-
-  it("builds the Walmart GTIN-14 link and the encoded Instacart and Target name links", async () => {
-    stubApi({ search: [{ food, nutrition }], prices: [] });
-    render(<Home />);
-    openMarketplace();
-
-    await searchFor("Greek Yogurt");
-    await screen.findByRole("heading", { name: "Greek Yogurt" });
-    selectCard("Greek Yogurt");
-
-    const walmart = screen.getByRole("link", { name: "Search Walmart" });
-    expect(walmart).toHaveAttribute("href", "https://www.walmart.com/search?q=00012345678905");
-    expect(walmart).toHaveAttribute("target", "_blank");
-    expect(walmart.getAttribute("rel")).toContain("noopener");
-    expect(walmart.getAttribute("rel")).toContain("noreferrer");
-
+    expect(screen.getByRole("link", { name: "Search Walmart" })).toHaveAttribute(
+      "href",
+      "https://www.walmart.com/search?q=00012345678905",
+    );
     expect(screen.getByRole("link", { name: "Search Instacart" })).toHaveAttribute(
       "href",
       "https://www.instacart.com/store/s?k=Greek%20Yogurt",
@@ -226,62 +204,102 @@ describe("Marketplace tab", () => {
       "href",
       "https://www.target.com/s?searchTerm=Greek%20Yogurt",
     );
-    expect(
-      screen.getByText("Opens the retailer's search. Prices there are not ours."),
-    ).toBeInTheDocument();
+    expect(fetchMock.mock.calls.some(([url]) => String(url) === "/api/prices?barcode=012345678905")).toBe(true);
+
+    await lookupFor("012345678905");
+    await waitFor(() => expect(JSON.parse(localStorage.getItem(MARKET_KEY) ?? "[]")).toHaveLength(1));
+    expect(screen.getAllByRole("heading", { name: "Greek Yogurt" })).toHaveLength(1);
+
+    expect(screen.queryByText(/opens the retailer's search/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/prices there are not ours/i)).not.toBeInTheDocument();
   });
 
-  it("skips the price fetch and the Walmart link when an item has no barcode", async () => {
-    const noBarcode = makeFood("Loose Oats", { source: offSource });
-    const fetchMock = stubApi({ search: [{ food: noBarcode, nutrition }] });
+  it("shows dashes for every value that is not known, without a sentence", async () => {
+    const bare = makeFood("Mystery Bar", { source: offSource });
+    stubApi({ search: [{ food: bare, nutrition: null }] });
+    render(<Home />);
+    openMarketplace();
+
+    await searchFor("mystery");
+    await screen.findByRole("heading", { name: "Mystery Bar" });
+    addResult("Mystery Bar");
+
+    const row = rowFor("Mystery Bar");
+    expect(cell(row, "price")).toHaveTextContent("—");
+    expect(cell(row, "protein")).toHaveTextContent("—");
+    expect(cell(row, "kcal")).toHaveTextContent("—");
+    expect(cell(row, "per-dollar")).toHaveTextContent("—");
+    expect(cell(row, "per-kcal")).toHaveTextContent("—");
+    expect(screen.queryByText(/no community price/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/not listed/i)).not.toBeInTheDocument();
+  });
+
+  it("renders the entered price and ratios when package weight and price paid are known", async () => {
+    const bare = makeFood("Loose Oats", { source: offSource });
+    stubApi({ search: [{ food: bare, nutrition }] });
     render(<Home />);
     openMarketplace();
 
     await searchFor("oats");
     await screen.findByRole("heading", { name: "Loose Oats" });
-    selectCard("Loose Oats");
+    addResult("Loose Oats");
+
+    fireEvent.change(screen.getByLabelText(/package weight \(g\)/i), { target: { value: "500" } });
+    fireEvent.change(screen.getByLabelText(/price paid/i), { target: { value: "5" } });
+
+    await waitFor(() => expect(cell(rowFor("Loose Oats"), "price")).toHaveTextContent("5 USD"));
+    expect(cell(rowFor("Loose Oats"), "per-dollar")).toHaveTextContent("10 g/USD");
+    expect(cell(rowFor("Loose Oats"), "per-kcal")).toHaveTextContent("16.67 g/100 kcal");
+  });
+
+  it("shows short loading and error states without leaving stale results", async () => {
+    let release: (value: Response) => void = () => undefined;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: string | URL | Request) => {
+        const url = String(input);
+        if (url.includes("/api/foods/search")) {
+          return new Promise<Response>((resolve) => {
+            release = resolve;
+          });
+        }
+        if (url.includes("/api/foods/lookup")) return Promise.resolve(jsonResponse({ ok: true, data: [] }));
+        return Promise.resolve(jsonResponse({ ok: true, data: { observations: [] } }));
+      }),
+    );
+    render(<Home />);
+    openMarketplace();
+
+    await searchFor("oats");
+    expect(screen.getByRole("status")).toHaveTextContent("Searching…");
+
+    await act(async () => {
+      release(jsonResponse({ ok: true, data: [] }));
+    });
+    expect(await screen.findByRole("status")).toHaveTextContent("No match.");
+    expect(screen.queryByText(/no open food facts match/i)).not.toBeInTheDocument();
+
+    await lookupFor("012345678905");
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("No match."));
+
+    fireEvent.change(screen.getByLabelText(/^barcode$/i), { target: { value: "12" } });
+    fireEvent.click(screen.getByRole("button", { name: /^look up$/i }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Barcode must be 4–24 digits.");
+  });
+
+  it("skips the Walmart link and the price request when an item has no barcode", async () => {
+    const bare = makeFood("Loose Oats", { source: offSource });
+    const fetchMock = stubApi({ search: [{ food: bare, nutrition }] });
+    render(<Home />);
+    openMarketplace();
+
+    await searchFor("oats");
+    await screen.findByRole("heading", { name: "Loose Oats" });
+    addResult("Loose Oats");
 
     expect(await screen.findByRole("link", { name: "Search Instacart" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Search Target" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Search Walmart" })).not.toBeInTheDocument();
-    expect(screen.getAllByText(/no barcode/i).length).toBeGreaterThan(0);
     expect(fetchMock.mock.calls.some(([url]) => String(url).includes("/api/prices"))).toBe(false);
-  });
-
-  it("never averages prices or presents an observation as a current price", async () => {
-    stubApi({
-      lookup: [{ food, nutrition }],
-      prices: [observation({ price: 4, currency: "USD", pricePer: "UNIT" }), observation({ price: 6, currency: "USD", pricePer: "UNIT" })],
-    });
-    render(<Home />);
-    openMarketplace();
-
-    await lookupFor("012345678905");
-    await screen.findByRole("heading", { name: "Greek Yogurt" });
-    selectCard("Greek Yogurt");
-
-    expect(await screen.findByText("4 USD")).toBeInTheDocument();
-    expect(screen.getByText("6 USD")).toBeInTheDocument();
-    expect(screen.queryByText("5 USD")).not.toBeInTheDocument();
-    expect(screen.queryByText("5.00 USD")).not.toBeInTheDocument();
-    expect(screen.queryByText(/current price/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/live price/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/average/i)).not.toBeInTheDocument();
-    expect(screen.getByText(/not ours/i)).toBeInTheDocument();
-  });
-
-  it("shows an Open Food Facts error without leaving stale results", async () => {
-    stubApi({});
-    render(<Home />);
-    openMarketplace();
-
-    await lookupFor("012345678905");
-    expect(await screen.findByText(/no open food facts match for this barcode/i)).toBeInTheDocument();
-
-    fireEvent.change(screen.getByLabelText(/^barcode$/i), { target: { value: "12" } });
-    fireEvent.click(screen.getByRole("button", { name: /look up barcode/i }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Enter a barcode of 4 to 24 digits.");
-
-    await waitFor(() => expect(screen.queryByRole("heading", { name: "Greek Yogurt" })).not.toBeInTheDocument());
   });
 });

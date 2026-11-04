@@ -1,65 +1,338 @@
 "use client";
 
-import React, { useRef, useState } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
 import { ApiError, lookupBarcode, searchFoods, type FoodMatch } from "../client/api";
 import { formatNumber } from "../client/format";
-import { nutritionPer100g } from "../client/history";
+import {
+  MARKET_LIMIT,
+  loadMarket,
+  marketKey,
+  marketValues,
+  patchMarketItem,
+  removeMarketItem,
+  saveMarket,
+  upsertMarketItem,
+  type MarketItem,
+} from "../client/market";
 import {
   fetchPrices,
   formatObservationPrice,
   observationLocation,
   pricePerLabel,
-  proteinPerDollar,
   retailerLinks,
   type PriceObservation,
 } from "../client/prices";
 
-const NO_PRICE = "No community price for this item yet.";
-const PRICE_ERROR = "Prices are unavailable right now.";
+const DASH = "—";
+const CURRENCIES = ["USD", "EUR", "GBP", "CAD", "AUD", "JPY"];
 
-type PriceState = "idle" | "loading" | "ready" | "empty" | "error";
+type PriceState = "loading" | "empty" | "error";
 type Busy = "search" | "barcode" | null;
 
 function describeLookupError(error: unknown): string {
   if (error instanceof ApiError && error.code === "rate_limit") {
-    return "Too many lookups were made just now. Wait a moment and try again.";
+    return "Too many lookups. Try again shortly.";
   }
-  return "Open Food Facts did not respond. Try again in a moment.";
+  return "Lookup failed.";
 }
 
-function proteinPerDollarLabel(currency: string): string {
-  return currency === "USD" ? "Protein per dollar" : `Protein per ${currency}`;
+function positiveInput(value: string): number | null {
+  if (value.trim() === "") return null;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return parsed;
+}
+
+function Cell({
+  label,
+  column,
+  value,
+  highlighted = false,
+}: {
+  label: string;
+  column: string;
+  value: string;
+  highlighted?: boolean;
+}) {
+  return (
+    <div className="market-cell" data-column={column}>
+      <span className="market-cell-label">{label}</span>
+      <span className={`market-value${value === DASH ? " is-empty" : ""}${highlighted ? " is-ratio" : ""}`}>
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function MarketHead() {
+  return (
+    <div className="market-table-head" aria-hidden="true">
+      <span>Food</span>
+      <span>Price</span>
+      <span>Protein</span>
+      <span>Kcal</span>
+      <span>Protein/$</span>
+      <span>Protein/100 kcal</span>
+      <span />
+    </div>
+  );
+}
+
+type MarketRowProps = {
+  item: MarketItem;
+  mode: "saved" | "result";
+  expanded?: boolean;
+  priceState?: PriceState;
+  onAdd?: () => void;
+  onToggle?: () => void;
+  onRemove?: () => void;
+  onPatch?: (patch: Partial<Pick<MarketItem, "packageWeightG" | "paidPrice" | "paidCurrency">>) => void;
+};
+
+function MarketRow({
+  item,
+  mode,
+  expanded = false,
+  priceState,
+  onAdd,
+  onToggle,
+  onRemove,
+  onPatch,
+}: MarketRowProps) {
+  const rowId = useId();
+  const [weightInput, setWeightInput] = useState(item.packageWeightG === null ? "" : String(item.packageWeightG));
+  const [paidInput, setPaidInput] = useState(item.paidPrice === null ? "" : String(item.paidPrice));
+  const values = marketValues(item);
+  const name = item.food.name;
+  const barcode = item.food.barcode?.trim() ?? "";
+  const priceLabel = values.price ? `${formatNumber(values.price.value)} ${values.price.currency}` : DASH;
+  const proteinLabel = values.proteinG === null ? DASH : `${formatNumber(values.proteinG)} g`;
+  const kcalLabel = values.energyKcal === null ? DASH : `${formatNumber(values.energyKcal)} kcal`;
+  const perDollarLabel = values.proteinPerCurrency
+    ? `${formatNumber(values.proteinPerCurrency.value)} g/${values.proteinPerCurrency.currency}`
+    : DASH;
+  const perKcalLabel =
+    values.proteinPer100Kcal === null ? DASH : `${formatNumber(values.proteinPer100Kcal)} g/100 kcal`;
+  const currencyOptions = CURRENCIES.includes(item.paidCurrency)
+    ? CURRENCIES
+    : [item.paidCurrency, ...CURRENCIES];
+  const detailId = `${rowId}-detail`;
+
+  return (
+    <li className={`market-item${expanded ? " is-open" : ""}`}>
+      <div className="market-grid">
+        <div className="market-ident">
+          <h3 className="market-name">{name}</h3>
+          {barcode && <span className="market-barcode">{barcode}</span>}
+        </div>
+
+        <Cell label="Price" column="price" value={priceLabel} />
+        <Cell label="Protein" column="protein" value={proteinLabel} />
+        <Cell label="Kcal" column="kcal" value={kcalLabel} />
+        <Cell label="Protein/$" column="per-dollar" value={perDollarLabel} highlighted />
+        <Cell label="Protein/100 kcal" column="per-kcal" value={perKcalLabel} />
+
+        <div className="market-actions">
+          {mode === "saved" ? (
+            <>
+              <button
+                type="button"
+                className="market-action"
+                aria-expanded={expanded}
+                aria-controls={expanded ? detailId : undefined}
+                onClick={onToggle}
+              >
+                {expanded ? "Hide" : "Details"}
+              </button>
+              <button
+                type="button"
+                className="market-remove"
+                aria-label={`Remove ${name}`}
+                onClick={onRemove}
+              >
+                ×
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              className="market-action market-action-primary"
+              aria-label={`Add ${name} to list`}
+              onClick={onAdd}
+            >
+              Add
+            </button>
+          )}
+        </div>
+      </div>
+
+      {mode === "saved" && expanded && (
+        <div className="market-detail" id={detailId}>
+          <div className="market-detail-block">
+            <h4 className="market-detail-title">Prices</h4>
+            {item.observations.length > 0 ? (
+              <ul className="price-list" aria-label={`Prices for ${name}`}>
+                {item.observations.map((observation, index) => {
+                  const location = observationLocation(observation);
+                  const per = pricePerLabel(observation.pricePer);
+                  return (
+                    <li
+                      className="price-row"
+                      key={`${observation.store ?? "store"}-${observation.date ?? "date"}-${observation.price}-${index}`}
+                    >
+                      <div className="price-row-main">
+                        <p className="price-amount">{formatObservationPrice(observation)}</p>
+                        <p className="price-meta">
+                          <span>{observation.store?.trim() || DASH}</span>
+                          {location && <span>{location}</span>}
+                          <span>{observation.date ?? DASH}</span>
+                          {per && <span>{per}</span>}
+                        </p>
+                      </div>
+                      {observation.discounted && <span className="market-chip">Discounted</span>}
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : priceState === "loading" ? (
+              <p className="market-note" role="status" aria-live="polite">
+                Loading…
+              </p>
+            ) : priceState === "error" ? (
+              <p className="market-price-error" role="alert">
+                Prices unavailable.
+              </p>
+            ) : (
+              <p className="market-dash">{DASH}</p>
+            )}
+          </div>
+
+          <div className="market-detail-block">
+            <h4 className="market-detail-title">Retailers</h4>
+            <div className="action-row market-link-row">
+              {retailerLinks(item.food).map((retailer) => (
+                <a
+                  key={retailer.name}
+                  className="button button-quiet market-retailer"
+                  href={retailer.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={`Search ${retailer.name}`}
+                >
+                  {retailer.name}
+                </a>
+              ))}
+            </div>
+          </div>
+
+          <div className="market-entry">
+            <div className="field">
+              <label htmlFor={`${rowId}-weight`}>Package weight (g)</label>
+              <input
+                id={`${rowId}-weight`}
+                type="number"
+                min="0"
+                step="any"
+                inputMode="decimal"
+                value={weightInput}
+                onChange={(event) => {
+                  setWeightInput(event.target.value);
+                  onPatch?.({ packageWeightG: positiveInput(event.target.value) });
+                }}
+              />
+            </div>
+            <div className="field">
+              <label htmlFor={`${rowId}-paid`}>Price paid</label>
+              <input
+                id={`${rowId}-paid`}
+                type="number"
+                min="0"
+                step="any"
+                inputMode="decimal"
+                value={paidInput}
+                onChange={(event) => {
+                  setPaidInput(event.target.value);
+                  onPatch?.({ paidPrice: positiveInput(event.target.value) });
+                }}
+              />
+            </div>
+            <div className="field">
+              <label htmlFor={`${rowId}-currency`}>Currency</label>
+              <select
+                id={`${rowId}-currency`}
+                value={item.paidCurrency}
+                onChange={(event) => onPatch?.({ paidCurrency: event.target.value })}
+              >
+                {currencyOptions.map((currency) => (
+                  <option key={currency} value={currency}>
+                    {currency}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+      )}
+    </li>
+  );
 }
 
 export default function MarketplacePanel() {
   const [query, setQuery] = useState("");
   const [barcode, setBarcode] = useState("");
   const [results, setResults] = useState<FoodMatch[]>([]);
+  const [saved, setSaved] = useState<MarketItem[]>([]);
   const [busy, setBusy] = useState<Busy>(null);
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
-  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
-  const [observations, setObservations] = useState<PriceObservation[]>([]);
-  const [priceState, setPriceState] = useState<PriceState>("idle");
+  const [expandedKey, setExpandedKey] = useState<string | null>(null);
+  const [priceStates, setPriceStates] = useState<Record<string, PriceState>>({});
   const lookupRequestRef = useRef(0);
-  const priceRequestRef = useRef(0);
+  const savedRef = useRef<MarketItem[]>([]);
 
-  function clearSelection() {
-    priceRequestRef.current += 1;
-    setSelectedIndex(null);
-    setObservations([]);
-    setPriceState("idle");
+  useEffect(() => {
+    const loaded = loadMarket();
+    savedRef.current = loaded;
+    setSaved(loaded);
+  }, []);
+
+  function commitSaved(next: MarketItem[]): void {
+    const capped = next.slice(0, MARKET_LIMIT);
+    savedRef.current = capped;
+    setSaved(capped);
+    try {
+      saveMarket(capped);
+    } catch {
+      setError("Could not save the list.");
+    }
+  }
+
+  async function loadPrices(key: string, barcodeForPrices: string): Promise<void> {
+    setPriceStates((current) => ({ ...current, [key]: "loading" }));
+    try {
+      const data = await fetchPrices(barcodeForPrices);
+      if (!savedRef.current.some((item) => item.key === key)) {
+        setPriceStates((current) => {
+          const next = { ...current };
+          delete next[key];
+          return next;
+        });
+        return;
+      }
+      commitSaved(savedRef.current.map((item) => (item.key === key ? { ...item, observations: data.observations } : item)));
+      setPriceStates((current) => ({ ...current, [key]: "empty" }));
+    } catch {
+      if (!savedRef.current.some((item) => item.key === key)) return;
+      setPriceStates((current) => ({ ...current, [key]: "error" }));
+    }
   }
 
   function beginLookup(kind: Exclude<Busy, null>): number {
     const id = ++lookupRequestRef.current;
-    priceRequestRef.current += 1;
     setBusy(kind);
     setError("");
+    setStatus("");
     setResults([]);
-    setSelectedIndex(null);
-    setObservations([]);
-    setPriceState("idle");
     return id;
   }
 
@@ -67,21 +340,17 @@ export default function MarketplacePanel() {
     event.preventDefault();
     const q = query.trim();
     if (!q) {
-      setError("Enter a food name to search.");
       setStatus("");
+      setError("Enter a food name.");
       return;
     }
     const id = beginLookup("search");
-    setStatus("Searching Open Food Facts…");
+    setStatus("Searching…");
     try {
       const found = await searchFoods(q);
       if (lookupRequestRef.current !== id) return;
       setResults(found);
-      setStatus(
-        found.length > 0
-          ? `${found.length} ${found.length === 1 ? "food" : "foods"} found. Choose one to see community prices and retailer searches.`
-          : "No Open Food Facts match for that name. Try a different search.",
-      );
+      setStatus(found.length > 0 ? "" : "No match.");
     } catch (lookupError) {
       if (lookupRequestRef.current !== id) return;
       setStatus("");
@@ -95,26 +364,38 @@ export default function MarketplacePanel() {
     event.preventDefault();
     const code = barcode.trim();
     if (!code) {
-      setError("Enter a barcode to look up.");
       setStatus("");
+      setError("Enter a barcode.");
       return;
     }
     if (!/^\d{4,24}$/.test(code)) {
-      setError("Enter a barcode of 4 to 24 digits.");
       setStatus("");
+      setError("Barcode must be 4–24 digits.");
       return;
     }
     const id = beginLookup("barcode");
-    setStatus("Looking up this barcode in Open Food Facts…");
+    setStatus("Looking up…");
     try {
       const found = await lookupBarcode(code);
       if (lookupRequestRef.current !== id) return;
-      setResults(found);
-      setStatus(
-        found.length > 0
-          ? "Found a possible Open Food Facts match below. Check the name and values before using it."
-          : "No Open Food Facts match for this barcode. Check the number, or search by name.",
-      );
+      if (found.length === 0) {
+        setStatus("No match.");
+        return;
+      }
+      const keys: string[] = [];
+      const priceCodes: string[] = [];
+      for (const match of found) {
+        const { items, item } = upsertMarketItem(savedRef.current, match);
+        commitSaved(items);
+        keys.push(item.key);
+        priceCodes.push(match.food.barcode?.trim() || code);
+      }
+      setStatus("");
+      setExpandedKey(keys[0] ?? null);
+      keys.forEach((key, index) => {
+        const priceCode = priceCodes[index];
+        if (priceCode) void loadPrices(key, priceCode);
+      });
     } catch (lookupError) {
       if (lookupRequestRef.current !== id) return;
       setStatus("");
@@ -124,51 +405,55 @@ export default function MarketplacePanel() {
     }
   }
 
-  function handleSelect(match: FoodMatch, index: number) {
-    if (selectedIndex === index) {
-      clearSelection();
-      return;
+  function handleAddResult(match: FoodMatch): void {
+    const { items, item } = upsertMarketItem(savedRef.current, match);
+    commitSaved(items);
+    setResults((current) => current.filter((result) => marketKey(result.food) !== item.key));
+    setExpandedKey(item.key);
+    const priceCode = item.food.barcode?.trim() ?? "";
+    if (priceCode && item.observations.length === 0 && priceStates[item.key] === undefined) {
+      void loadPrices(item.key, priceCode);
     }
-    priceRequestRef.current += 1;
-    setSelectedIndex(index);
-    setObservations([]);
-    setPriceState("idle");
-
-    const code = match.food.barcode?.trim() ?? "";
-    if (!code) return;
-
-    const id = priceRequestRef.current;
-    setPriceState("loading");
-    void fetchPrices(code)
-      .then((data) => {
-        if (priceRequestRef.current !== id) return;
-        setObservations(data.observations);
-        setPriceState(data.observations.length > 0 ? "ready" : "empty");
-      })
-      .catch(() => {
-        if (priceRequestRef.current !== id) return;
-        setObservations([]);
-        setPriceState("error");
-      });
   }
 
-  const selected = selectedIndex === null ? null : results[selectedIndex] ?? null;
-  const newest = observations[0] ?? null;
-  const perDollar = selected && newest ? proteinPerDollar(selected.food, selected.nutrition, newest) : null;
-  const selectedHasBarcode = Boolean(selected?.food.barcode?.trim());
+  function handleToggle(key: string): void {
+    if (expandedKey === key) {
+      setExpandedKey(null);
+      return;
+    }
+    const item = savedRef.current.find((entry) => entry.key === key);
+    setExpandedKey(key);
+    const priceCode = item?.food.barcode?.trim() ?? "";
+    if (item && priceCode && item.observations.length === 0 && priceStates[key] === undefined) {
+      void loadPrices(key, priceCode);
+    }
+  }
+
+  function handleRemove(key: string): void {
+    commitSaved(removeMarketItem(savedRef.current, key));
+    if (expandedKey === key) setExpandedKey(null);
+    setPriceStates((current) => {
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
+  }
+
+  function handlePatch(
+    key: string,
+    patch: Partial<Pick<MarketItem, "packageWeightG" | "paidPrice" | "paidCurrency">>,
+  ): void {
+    commitSaved(patchMarketItem(savedRef.current, key, patch));
+  }
+
+  const savedByKey = new Map(saved.map((item) => [item.key, item]));
 
   return (
     <section className="card marketplace" aria-labelledby="marketplace-heading">
-      <p className="eyebrow">Browse, don't buy</p>
-      <h2 id="marketplace-heading">Marketplace</h2>
-      <p className="lede market-lede">
-        Find a packaged food, see what people have paid, and open a retailer's search. We sell nothing and hold no
-        stock.
-      </p>
-      <p className="muted small market-principle">
-        Community prices are past reports from shoppers, not live shelf prices. Each retailer link opens that
-        retailer's own search.
-      </p>
+      <div className="market-head">
+        <h2 id="marketplace-heading">Marketplace</h2>
+        <p className="market-principle muted small">Community prices, not live shelf prices.</p>
+      </div>
 
       <div className="market-forms">
         <form className="search-form" onSubmit={handleSearch}>
@@ -183,7 +468,7 @@ export default function MarketplacePanel() {
             />
           </div>
           <button type="submit" className="button" disabled={busy !== null}>
-            {busy === "search" ? "Searching…" : "Search"}
+            Search
           </button>
         </form>
 
@@ -200,185 +485,97 @@ export default function MarketplacePanel() {
             />
           </div>
           <button type="submit" className="button" disabled={busy !== null}>
-            {busy === "barcode" ? "Looking up…" : "Look up barcode"}
+            Look up
           </button>
         </form>
       </div>
 
-      {status && (
-        <p role="status" aria-live="polite" className="muted">
-          {status}
-        </p>
-      )}
+      <p className="market-status muted small" role="status" aria-live="polite">
+        {status}
+      </p>
+
       {error && (
         <p role="alert" className="alert">
           {error}
         </p>
       )}
 
-      {results.length === 0 && !status && !error && (
-        <p className="market-start-hint">
-          Start with a name or barcode. Choose a result to see community prices and open a retailer search.
-        </p>
-      )}
-
       {results.length > 0 && (
-        <div className="market-results">
-          <div className="market-results-head">
-            <h3>Results</h3>
-            <span className="market-count">
-              {results.length} {results.length === 1 ? "item" : "items"}
+        <section className="market-section" aria-labelledby="market-results-heading">
+          <div className="market-section-head">
+            <h3 id="market-results-heading">Results</h3>
+            <span className="market-count" aria-label={`${results.length} results`}>
+              {results.length}
             </span>
           </div>
-
+          <MarketHead />
           <ul className="market-list">
-            {results.map((match, index) => {
-              const values = nutritionPer100g(match.food, match.nutrition);
-              const isSelected = selectedIndex === index;
-              const detailId = `market-detail-${index}`;
-              const itemPerDollar = isSelected && newest ? proteinPerDollar(match.food, match.nutrition, newest) : null;
+            {results.map((match) => {
+              const key = marketKey(match.food);
+              const savedItem = savedByKey.get(key);
+              const preview: MarketItem = {
+                key,
+                food: match.food,
+                nutrition: match.nutrition,
+                observations: savedItem?.observations ?? [],
+                packageWeightG: null,
+                paidPrice: null,
+                paidCurrency: savedItem?.paidCurrency ?? "USD",
+              };
               return (
-                <li className={`market-card${isSelected ? " is-selected" : ""}`} key={`${match.food.id ?? match.food.name}-${index}`}>
-                  <div className="market-card-head">
-                    <div className="market-card-main">
-                      <h3 className="market-name">{match.food.name}</h3>
-                      <p className="market-source">
-                        {match.food.source.label}
-                        {match.food.barcode ? ` · ${match.food.barcode}` : " · No barcode"}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      className="button button-quiet market-select"
-                      aria-label={`View community prices for ${match.food.name}`}
-                      aria-expanded={isSelected}
-                      aria-controls={isSelected ? detailId : undefined}
-                      onClick={() => handleSelect(match, index)}
-                    >
-                      {isSelected ? "Hide prices" : "View prices"}
-                    </button>
-                  </div>
-
-                  <div className="market-facts">
-                    <div className="market-fact">
-                      <span className="market-fact-label">Protein</span>
-                      <span className="market-fact-value">
-                        {values.proteinG === null ? "Not listed" : `${formatNumber(values.proteinG)} g protein per 100 g`}
-                      </span>
-                    </div>
-                    <div className="market-fact">
-                      <span className="market-fact-label">Energy</span>
-                      <span className="market-fact-value">
-                        {values.energyKcal === null ? "Not listed" : `${formatNumber(values.energyKcal)} kcal per 100 g`}
-                      </span>
-                    </div>
-                    {itemPerDollar && (
-                      <div className="market-fact market-fact-price">
-                        <span className="market-fact-label">{proteinPerDollarLabel(itemPerDollar.currency)}</span>
-                        <span className="market-fact-value market-fact-highlight">
-                          {formatNumber(itemPerDollar.value)} g/{itemPerDollar.currency}
-                        </span>
-                        <span className="market-fact-note">Newest observation only</span>
-                      </div>
-                    )}
-                  </div>
-
-                  {isSelected && (
-                    <div className="market-detail" id={detailId}>
-                      <div className="market-price-block">
-                        <h4 className="market-detail-title">Community price observations (Open Prices)</h4>
-
-                        {!selectedHasBarcode ? (
-                          <p className="market-price-note">
-                            This item has no barcode, so community prices can't be looked up. Use a retailer search by
-                            name instead.
-                          </p>
-                        ) : priceState === "loading" ? (
-                          <p role="status" aria-live="polite" className="market-price-note">
-                            Loading community prices…
-                          </p>
-                        ) : priceState === "error" ? (
-                          <p role="alert" className="market-price-error">
-                            {PRICE_ERROR}
-                          </p>
-                        ) : priceState === "empty" ? (
-                          <p role="status" aria-live="polite" className="market-price-note">
-                            {NO_PRICE}
-                          </p>
-                        ) : priceState === "ready" ? (
-                          <>
-                            <ul className="price-list" aria-label={`Community prices for ${match.food.name}`}>
-                              {observations.map((observation, observationIndex) => {
-                                const location = observationLocation(observation);
-                                const per = pricePerLabel(observation.pricePer);
-                                return (
-                                  <li className="price-row" key={`${observation.store ?? "store"}-${observation.date ?? "date"}-${observation.price}-${observationIndex}`}>
-                                    <div className="price-row-main">
-                                      <p className="price-amount">{formatObservationPrice(observation)}</p>
-                                      <p className="price-meta">
-                                        <span>{observation.store?.trim() || "Store unknown"}</span>
-                                        {location && <span>{location}</span>}
-                                        <span>{observation.date ? `Observed ${observation.date}` : "Date unknown"}</span>
-                                        {per && <span>{per}</span>}
-                                      </p>
-                                    </div>
-                                    {observation.discounted && <span className="market-chip">Discounted</span>}
-                                  </li>
-                                );
-                              })}
-                            </ul>
-                            {!perDollar && (
-                              <p className="market-price-note">
-                                We can't work out protein per dollar without a known package weight and price basis, so
-                                it is not shown.
-                              </p>
-                            )}
-                            <p className="market-credit">
-                              Community prices from{" "}
-                              <a href="https://openprices.org" target="_blank" rel="noopener noreferrer">
-                                Open Prices
-                              </a>
-                              , shared under the{" "}
-                              <a
-                                href="https://opendatacommons.org/licenses/odbl/1-0/"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                              >
-                                Open Database License (ODbL)
-                              </a>
-                              .
-                            </p>
-                          </>
-                        ) : null}
-                      </div>
-
-                      <div className="market-retailers">
-                        <h4 className="market-detail-title">Search a retailer</h4>
-                        <p className="muted small market-retailer-note">
-                          Opens the retailer's search. Prices there are not ours.
-                        </p>
-                        <div className="action-row market-link-row">
-                          {retailerLinks(match.food).map((retailer) => (
-                            <a
-                              key={retailer.name}
-                              className="button button-quiet retailer-link"
-                              href={retailer.href}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                            >
-                              Search {retailer.name}
-                            </a>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </li>
+                <MarketRow
+                  key={key}
+                  item={preview}
+                  mode="result"
+                  onAdd={() => handleAddResult(match)}
+                />
               );
             })}
           </ul>
-        </div>
+        </section>
       )}
+
+      {saved.length > 0 && (
+        <section className="market-section" aria-labelledby="market-saved-heading">
+          <div className="market-section-head">
+            <h3 id="market-saved-heading">Saved</h3>
+            <span className="market-count" aria-label={`${saved.length} saved`}>
+              {saved.length}
+            </span>
+          </div>
+          <MarketHead />
+          <ul className="market-list">
+            {saved.map((item) => (
+              <MarketRow
+                key={item.key}
+                item={item}
+                mode="saved"
+                expanded={expandedKey === item.key}
+                priceState={priceStates[item.key]}
+                onToggle={() => handleToggle(item.key)}
+                onRemove={() => handleRemove(item.key)}
+                onPatch={(patch) => handlePatch(item.key, patch)}
+              />
+            ))}
+          </ul>
+        </section>
+      )}
+
+      <p className="market-credit">
+        Community prices from{" "}
+        <a href="https://openprices.org" target="_blank" rel="noopener noreferrer">
+          Open Prices
+        </a>
+        , shared under the{" "}
+        <a
+          href="https://opendatacommons.org/licenses/odbl/1-0/"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Open Database License (ODbL)
+        </a>
+        .
+      </p>
     </section>
   );
 }
