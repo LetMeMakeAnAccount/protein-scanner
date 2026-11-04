@@ -12,8 +12,6 @@ export type CatalogFood = {
   kcal: number;
   packageGrams: number | null;
   packageLabel: string | null;
-  /** Hotlinked Open Food Facts photo, when the seed row has one. */
-  image?: string | null;
   country: string | null;
 };
 

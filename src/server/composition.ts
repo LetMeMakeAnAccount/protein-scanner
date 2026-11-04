@@ -1,7 +1,8 @@
 import "server-only";
 import { foodSchema, nutritionSchema } from "../contracts/schemas";
 import type { Food, Nutrition } from "../contracts/types";
-import { createImageHandlers } from "./http/image";
+import { createImageHandlers as createScanImageHandlers } from "./http/image";
+import { createOffImageClient, productImageUrl } from "./images/offImages";
 import { MuseClient } from "./muse/client";
 import { createOffClient } from "./nutrition/off";
 import { createOpenPricesClient, type PriceObservation } from "./prices/openPrices";
@@ -13,6 +14,14 @@ type OffClient = {
   nutritionForFood(id: string): Promise<Nutrition | null>;
 };
 type PriceClient = { observationsFor(barcode: string): Promise<PriceObservation[]> };
+type ImageClient = { imagesFor(codes: string[]): Promise<Record<string, string | null>> };
+// Lazily created once per process so the photo cache survives individual
+// createProductionServices() calls, while tests can install a fetch stub first.
+let productImages: ImageClient | undefined;
+function imageClient(): ImageClient {
+  productImages ??= createOffImageClient();
+  return productImages;
+}
 
 function safeResponse(data: unknown, status = 200) {
   return Response.json(
@@ -103,6 +112,52 @@ export function createLookupHandlers(off: OffClient) {
       } catch {
         return lookupError(503);
       }
+    },
+  };
+}
+const imageCacheControl = "public, max-age=3600, stale-while-revalidate=86400";
+function imageError(): Response {
+  return Response.json(
+    { ok: false, error: { code: "invalid_input", message: "Invalid input" } },
+    { status: 400, headers: { "Cache-Control": "no-store" } },
+  );
+}
+export function createImagesHandlers(images: ImageClient) {
+  return {
+    async lookup(request: Request): Promise<Response> {
+      const params = new URL(request.url).searchParams;
+      const values = params.getAll("barcodes");
+      const keys = [...params.keys()];
+      if (values.length !== 1 || keys.some((key) => key !== "barcodes")) {
+        return imageError();
+      }
+      const [value] = values;
+      const codes = value.split(",");
+      if (
+        codes.length < 1 ||
+        codes.length > 12 ||
+        new Set(codes).size !== codes.length ||
+        codes.some((code) => !/^\d{4,24}$/.test(code))
+      ) {
+        return imageError();
+      }
+
+      // Photos are decorative: a failed or slow upstream lookup is reported as
+      // null rather than failing the whole batch. Every key is always present.
+      let resolved: Record<string, string | null> = {};
+      try {
+        resolved = await images.imagesFor(codes);
+      } catch {
+        resolved = {};
+      }
+      const result: Record<string, string | null> = {};
+      for (const code of codes) {
+        result[code] = productImageUrl(resolved[code]);
+      }
+      return Response.json(
+        { ok: true, data: { images: result } },
+        { status: 200, headers: { "Cache-Control": imageCacheControl } },
+      );
     },
   };
 }
@@ -287,7 +342,8 @@ export function createProductionServices(env: NodeJS.ProcessEnv) {
   return {
     lookup: () => createLookupHandlers(off),
     prices: () => createPriceHandlers(openPrices),
-    image: () => createImageHandlers({
+    images: () => createImagesHandlers(imageClient()),
+    image: () => createScanImageHandlers({
       allowedOrigins: origins,
       resolveClientIdentity,
       quota: quotaFor(enabled, cap),

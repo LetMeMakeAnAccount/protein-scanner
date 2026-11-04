@@ -1267,6 +1267,11 @@ a {
   min-width: 0;
 }
 
+/* Keeps a price column aligned on wide screens without printing a placeholder. */
+.market-cell-spacer {
+  display: none;
+}
+
 .market-cell-label {
   color: var(--ink-soft);
   font-size: 0.66rem;
@@ -1364,6 +1369,38 @@ a {
   padding-top: 12px;
 }
 
+.market-detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.market-detail-head .market-detail-title {
+  margin: 0;
+}
+
+.market-add-price {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 4px 12px;
+  color: var(--green-dark);
+  background: #fff;
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  font: inherit;
+  font-size: 0.74rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.market-add-price:hover {
+  background: var(--mint);
+}
+
 .market-detail-title {
   margin: 0 0 8px;
   color: var(--green-dark);
@@ -1376,12 +1413,6 @@ a {
   margin: 0;
   color: var(--ink-soft);
   font-weight: 600;
-}
-
-.market-dash {
-  margin: 0;
-  color: #8a8474;
-  font-weight: 700;
 }
 
 .price-list {
@@ -1504,12 +1535,22 @@ a {
     text-transform: uppercase;
   }
 
+  .market-table-head.no-price,
+  .market-grid.no-price {
+    grid-template-columns:
+      minmax(0, 2fr) minmax(0, 0.7fr) minmax(0, 0.62fr) minmax(0, 1.1fr) auto;
+  }
+
   .market-grid {
     grid-template-columns:
       minmax(0, 2fr) minmax(0, 0.8fr) minmax(0, 0.7fr) minmax(0, 0.62fr)
       minmax(0, 1fr) minmax(0, 1.1fr) auto;
     gap: 8px;
     padding: 10px 14px;
+  }
+
+  .market-cell-spacer {
+    display: block;
   }
 
   .market-ident,

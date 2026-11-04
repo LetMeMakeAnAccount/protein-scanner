@@ -152,8 +152,8 @@ describe("Marketplace tab", () => {
     const resultRow = result.closest("li") as HTMLElement;
     expect(cell(resultRow, "protein")).toHaveTextContent("10 g");
     expect(cell(resultRow, "kcal")).toHaveTextContent("60 kcal");
-    expect(cell(resultRow, "price")).toHaveTextContent("—");
-    expect(cell(resultRow, "per-dollar")).toHaveTextContent("—");
+    expect(resultRow.querySelector('[data-column="price"]')).toBeNull();
+    expect(resultRow.querySelector('[data-column="per-dollar"]')).toBeNull();
     expect(cell(resultRow, "per-kcal")).toHaveTextContent("16.67 g/100 kcal");
 
     addResult("Greek Yogurt");
@@ -218,7 +218,7 @@ describe("Marketplace tab", () => {
     expect(screen.queryByText(/prices there are not ours/i)).not.toBeInTheDocument();
   });
 
-  it("shows dashes for every value that is not known, without a sentence", async () => {
+  it("shows dashes for nutrition values that are not known, without cost placeholders", async () => {
     const bare = makeFood("Mystery Bar", { source: offSource });
     stubApi({ search: [{ food: bare, nutrition: null }] });
     render(<Home />);
@@ -229,12 +229,13 @@ describe("Marketplace tab", () => {
     addResult("Mystery Bar");
 
     const row = rowFor("Mystery Bar");
-    expect(cell(row, "price")).toHaveTextContent("—");
+    expect(row.querySelector('[data-column="price"]')).toBeNull();
+    expect(row.querySelector('[data-column="per-dollar"]')).toBeNull();
     expect(cell(row, "protein")).toHaveTextContent("—");
     expect(cell(row, "kcal")).toHaveTextContent("—");
-    expect(cell(row, "per-dollar")).toHaveTextContent("—");
     expect(cell(row, "per-kcal")).toHaveTextContent("—");
-    expect(screen.queryByText(/no community price/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/\$\s*—/)).not.toBeInTheDocument();
+    expect(screen.getByText("No community prices yet.")).toBeInTheDocument();
     expect(screen.queryByText(/not listed/i)).not.toBeInTheDocument();
   });
 
@@ -254,6 +255,40 @@ describe("Marketplace tab", () => {
     await waitFor(() => expect(cell(rowFor("Loose Oats"), "price")).toHaveTextContent("5 USD"));
     expect(cell(rowFor("Loose Oats"), "per-dollar")).toHaveTextContent("10 g/USD");
     expect(cell(rowFor("Loose Oats"), "per-kcal")).toHaveTextContent("16.67 g/100 kcal");
+  });
+
+  it("offers one Add price action in Details and reveals cost blocks only once a price exists", async () => {
+    const bare = makeFood("Loose Oats", { source: offSource });
+    stubApi({ search: [{ food: bare, nutrition }] });
+    render(<Home />);
+    openMarketplace();
+
+    await searchFor("oats");
+    await screen.findByRole("heading", { name: "Loose Oats" });
+    addResult("Loose Oats");
+
+    const row = rowFor("Loose Oats");
+    expect(row.querySelector('[data-column="price"]')).toBeNull();
+    expect(row.querySelector('[data-column="per-dollar"]')).toBeNull();
+
+    fireEvent.click(within(row).getByRole("button", { name: /^hide$/i }));
+    expect(row.querySelector(".market-add-price")).toBeNull();
+
+    fireEvent.click(within(row).getByRole("button", { name: /^details$/i }));
+    const priceInput = screen.getByLabelText(/price paid/i);
+    expect(priceInput).not.toHaveFocus();
+    const addPriceButtons = screen.getAllByRole("button", { name: /^add price$/i });
+    expect(addPriceButtons).toHaveLength(1);
+
+    fireEvent.click(addPriceButtons[0]);
+    expect(priceInput).toHaveFocus();
+
+    fireEvent.change(priceInput, { target: { value: "4" } });
+    await waitFor(() => expect(cell(rowFor("Loose Oats"), "price")).toHaveTextContent("4 USD"));
+    expect(rowFor("Loose Oats").querySelector('[data-column="per-dollar"]')).not.toBeNull();
+
+    fireEvent.change(screen.getByLabelText(/package weight \(g\)/i), { target: { value: "500" } });
+    await waitFor(() => expect(cell(rowFor("Loose Oats"), "per-dollar")).toHaveTextContent("12.5 g/USD"));
   });
 
   it("shows short loading and error states without leaving stale results", async () => {
@@ -347,13 +382,14 @@ describe("Marketplace bundled catalog", () => {
     expect(catalogLine(row)).toBe(
       `P ${formatNumber(first.proteinG)}g · ${formatNumber(first.kcal)} kcal · ${perKcal.toLocaleString("en-US", {
         maximumFractionDigits: 1,
-      })} g/100kcal · $ —`,
+      })} g/100kcal`,
     );
-    expect(row.querySelectorAll(".catalog-sep")).toHaveLength(3);
+    expect(row.querySelectorAll(".catalog-sep")).toHaveLength(2);
     expect(cell(row, "protein")).toHaveTextContent(`P ${formatNumber(first.proteinG)}g`);
     expect(cell(row, "kcal")).toHaveTextContent(`${formatNumber(first.kcal)} kcal`);
     expect(cell(row, "per-kcal")).toHaveTextContent(/g\/100kcal/);
-    expect(cell(row, "per-dollar")).toHaveTextContent("$ —");
+    expect(row.querySelector('[data-column="per-dollar"]')).toBeNull();
+    expect(within(row).queryByText(/\$ —/)).toBeNull();
     expect(within(row).getByRole("heading", { name: first.name })).toHaveAttribute("title", first.name);
     expect(row.querySelector(".market-cell-label")).toBeNull();
     expect(within(row).getByRole("button", { name: `Add ${first.name} to list` })).toHaveClass("catalog-add");

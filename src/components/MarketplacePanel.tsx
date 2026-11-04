@@ -12,6 +12,7 @@ import {
 } from "../client/catalog";
 import { formatNumber } from "../client/format";
 import ProductThumb from "./ProductThumb";
+import { useProductImages, type Observe } from "./useProductImages";
 import {
   MARKET_LIMIT,
   loadMarket,
@@ -78,14 +79,14 @@ function Cell({
   );
 }
 
-function MarketHead() {
+function MarketHead({ showPrice = true }: { showPrice?: boolean }) {
   return (
-    <div className="market-table-head" aria-hidden="true">
+    <div className={`market-table-head${showPrice ? "" : " no-price"}`} aria-hidden="true">
       <span>Food</span>
-      <span>Price</span>
+      {showPrice && <span>Price</span>}
       <span>Protein</span>
       <span>Kcal</span>
-      <span>Protein/$</span>
+      {showPrice && <span>Protein/$</span>}
       <span>Protein/100 kcal</span>
       <span />
     </div>
@@ -95,19 +96,28 @@ function MarketHead() {
 type CatalogRowProps = {
   food: CatalogFood;
   price: { value: number; currency: string } | null;
+  image?: string | null;
+  observe: Observe;
   onAdd: () => void;
 };
 
-function CatalogRow({ food, price, onAdd }: CatalogRowProps) {
+function CatalogRow({ food, price, image, observe, onAdd }: CatalogRowProps) {
+  const rowRef = useRef<HTMLLIElement>(null);
   const perKcal = catalogProteinPer100Kcal(food);
   const perDollar = catalogProteinPerDollar(food, price);
   const perDollarTitle =
     perDollar === null ? undefined : `${formatNumber(perDollar)} g per ${price?.currency ?? "USD"}`;
 
+  useEffect(() => {
+    const element = rowRef.current;
+    if (!element) return;
+    return observe(element, food.code);
+  }, [food.code, observe]);
+
   return (
-    <li className="market-item catalog-item" onClick={onAdd}>
+    <li className="market-item catalog-item" ref={rowRef} onClick={onAdd}>
       <div className="catalog-row">
-        <ProductThumb name={food.name} image={food.image} />
+        <ProductThumb name={food.name} image={image} />
         <div className="catalog-main">
           <h3 className="market-name catalog-name" title={food.name}>
             {food.name}
@@ -132,14 +142,18 @@ function CatalogRow({ food, price, onAdd }: CatalogRowProps) {
               <span className="visually-hidden">Protein per 100 kcal </span>
               {perKcal === null ? DASH : `${formatRatio(perKcal)} g/100kcal`}
             </span>
-            <span className="catalog-sep" aria-hidden="true">
-              ·
-            </span>
-            <span className="catalog-stat" data-column="per-dollar" title={perDollarTitle}>
-              <span className="visually-hidden">Protein per dollar </span>
-              <span aria-hidden="true">$ </span>
-              {perDollar === null ? DASH : formatNumber(perDollar)}
-            </span>
+            {perDollar !== null && (
+              <>
+                <span className="catalog-sep" aria-hidden="true">
+                  ·
+                </span>
+                <span className="catalog-stat" data-column="per-dollar" title={perDollarTitle}>
+                  <span className="visually-hidden">Protein per dollar </span>
+                  <span aria-hidden="true">$ </span>
+                  {formatNumber(perDollar)}
+                </span>
+              </>
+            )}
           </p>
         </div>
         <button
@@ -163,6 +177,9 @@ type MarketRowProps = {
   mode: "saved" | "result";
   expanded?: boolean;
   priceState?: PriceState;
+  image?: string | null;
+  observe: Observe;
+  showPriceColumns: boolean;
   onAdd?: () => void;
   onToggle?: () => void;
   onRemove?: () => void;
@@ -174,18 +191,23 @@ function MarketRow({
   mode,
   expanded = false,
   priceState,
+  image,
+  observe,
+  showPriceColumns,
   onAdd,
   onToggle,
   onRemove,
   onPatch,
 }: MarketRowProps) {
+  const rowRef = useRef<HTMLLIElement>(null);
+  const priceInputRef = useRef<HTMLInputElement>(null);
   const rowId = useId();
   const [weightInput, setWeightInput] = useState(item.packageWeightG === null ? "" : String(item.packageWeightG));
   const [paidInput, setPaidInput] = useState(item.paidPrice === null ? "" : String(item.paidPrice));
   const values = marketValues(item);
   const name = item.food.name;
   const barcode = item.food.barcode?.trim() ?? "";
-  const priceLabel = values.price ? `${formatNumber(values.price.value)} ${values.price.currency}` : DASH;
+  const priceLabel = values.price ? `${formatNumber(values.price.value)} ${values.price.currency}` : null;
   const proteinLabel = values.proteinG === null ? DASH : `${formatNumber(values.proteinG)} g`;
   const kcalLabel = values.energyKcal === null ? DASH : `${formatNumber(values.energyKcal)} kcal`;
   const perDollarLabel = values.proteinPerCurrency
@@ -193,26 +215,43 @@ function MarketRow({
     : DASH;
   const perKcalLabel =
     values.proteinPer100Kcal === null ? DASH : `${formatNumber(values.proteinPer100Kcal)} g/100 kcal`;
+  const hasPrice = priceLabel !== null;
+  const priceColumns = showPriceColumns || hasPrice;
   const currencyOptions = CURRENCIES.includes(item.paidCurrency)
     ? CURRENCIES
     : [item.paidCurrency, ...CURRENCIES];
   const detailId = `${rowId}-detail`;
 
+  useEffect(() => {
+    if (mode !== "saved" || !barcode) return;
+    const element = rowRef.current;
+    if (!element) return;
+    return observe(element, barcode);
+  }, [barcode, mode, observe]);
+
   return (
-    <li className={`market-item${expanded ? " is-open" : ""}`}>
-      <div className="market-grid">
+    <li className={`market-item${expanded ? " is-open" : ""}`} ref={rowRef}>
+      <div className={`market-grid${priceColumns ? "" : " no-price"}`}>
         <div className="market-ident">
-          {mode === "saved" && <ProductThumb name={name} image={item.image} />}
+          {mode === "saved" && <ProductThumb name={name} image={image} />}
           <div className="market-ident-text">
             <h3 className="market-name">{name}</h3>
             {barcode && <span className="market-barcode">{barcode}</span>}
           </div>
         </div>
 
-        <Cell label="Price" column="price" value={priceLabel} />
+        {priceLabel !== null ? (
+          <Cell label="Price" column="price" value={priceLabel} />
+        ) : (
+          priceColumns && <div className="market-cell market-cell-spacer" aria-hidden="true" />
+        )}
         <Cell label="Protein" column="protein" value={proteinLabel} />
         <Cell label="Kcal" column="kcal" value={kcalLabel} />
-        <Cell label="Protein/$" column="per-dollar" value={perDollarLabel} highlighted />
+        {priceLabel !== null ? (
+          <Cell label="Protein/$" column="per-dollar" value={perDollarLabel} highlighted />
+        ) : (
+          priceColumns && <div className="market-cell market-cell-spacer" aria-hidden="true" />
+        )}
         <Cell label="Protein/100 kcal" column="per-kcal" value={perKcalLabel} />
 
         <div className="market-actions">
@@ -252,7 +291,16 @@ function MarketRow({
       {mode === "saved" && expanded && (
         <div className="market-detail" id={detailId}>
           <div className="market-detail-block">
-            <h4 className="market-detail-title">Prices</h4>
+            <div className="market-detail-head">
+              <h4 className="market-detail-title">Prices</h4>
+              <button
+                type="button"
+                className="market-add-price"
+                onClick={() => priceInputRef.current?.focus()}
+              >
+                Add price
+              </button>
+            </div>
             {item.observations.length > 0 ? (
               <ul className="price-list" aria-label={`Prices for ${name}`}>
                 {item.observations.map((observation, index) => {
@@ -286,7 +334,7 @@ function MarketRow({
                 Prices unavailable.
               </p>
             ) : (
-              <p className="market-dash">{DASH}</p>
+              <p className="market-note">No community prices yet.</p>
             )}
           </div>
 
@@ -327,6 +375,7 @@ function MarketRow({
             <div className="field">
               <label htmlFor={`${rowId}-paid`}>Price paid</label>
               <input
+                ref={priceInputRef}
                 id={`${rowId}-paid`}
                 type="number"
                 min="0"
@@ -374,6 +423,7 @@ export default function MarketplacePanel() {
   const [catalogLimit, setCatalogLimit] = useState(40);
   const lookupRequestRef = useRef(0);
   const savedRef = useRef<MarketItem[]>([]);
+  const { images, observe, request } = useProductImages();
 
   useEffect(() => {
     const loaded = loadMarket();
@@ -505,7 +555,7 @@ export default function MarketplacePanel() {
     const match = catalogMatch(food);
     const key = marketKey(match.food);
     const existing = savedRef.current.find((item) => item.key === key);
-    const { items } = upsertMarketItem(savedRef.current, match, undefined, food.image);
+    const { items } = upsertMarketItem(savedRef.current, match);
     const packageWeightG =
       existing?.packageWeightG ??
       (food.packageGrams !== null && Number.isFinite(food.packageGrams) && food.packageGrams > 0
@@ -549,8 +599,48 @@ export default function MarketplacePanel() {
   }
 
   const savedByKey = new Map(saved.map((item) => [item.key, item]));
+  const resultRows = results.map((match) => {
+    const key = marketKey(match.food);
+    const savedItem = savedByKey.get(key);
+    const item: MarketItem = {
+      key,
+      food: match.food,
+      nutrition: match.nutrition,
+      observations: savedItem?.observations ?? [],
+      packageWeightG: null,
+      paidPrice: null,
+      paidCurrency: savedItem?.paidCurrency ?? "USD",
+    };
+    return { key, item, match };
+  });
+  const resultsHavePrice = resultRows.some(({ item }) => marketValues(item).price !== null);
+  const savedHavePrice = saved.some((item) => marketValues(item).price !== null);
   const filteredCatalog = useMemo(() => filterCatalog(catalogQuery), [catalogQuery]);
-  const visibleCatalog = filteredCatalog.slice(0, catalogLimit);
+  const visibleCatalog = useMemo(
+    () => filteredCatalog.slice(0, catalogLimit),
+    [filteredCatalog, catalogLimit],
+  );
+  const catalogImageKey = useMemo(
+    () => visibleCatalog.slice(0, 8).map((food) => food.code).join(","),
+    [visibleCatalog],
+  );
+  const savedImageKey = useMemo(
+    () =>
+      saved
+        .map((item) => item.food.barcode?.trim() ?? "")
+        .filter(Boolean)
+        .slice(0, 8)
+        .join(","),
+    [saved],
+  );
+
+  // No IntersectionObserver (older browsers, jsdom): show photos for the first
+  // visible screenful instead of hiding them behind a feature that is absent.
+  useEffect(() => {
+    if (typeof IntersectionObserver !== "undefined") return;
+    request(catalogImageKey ? catalogImageKey.split(",") : []);
+    request(savedImageKey ? savedImageKey.split(",") : []);
+  }, [catalogImageKey, savedImageKey, request]);
 
   return (
     <section className="card marketplace" aria-labelledby="marketplace-heading">
@@ -636,6 +726,8 @@ export default function MarketplacePanel() {
                     key={`${food.code}-${food.name}`}
                     food={food}
                     price={catalogSavedPrice(savedByKey.get(key))}
+                    image={images[food.code]}
+                    observe={observe}
                     onAdd={() => handleAddCatalog(food)}
                   />
                 );
@@ -673,29 +765,18 @@ export default function MarketplacePanel() {
               {results.length}
             </span>
           </div>
-          <MarketHead />
+          <MarketHead showPrice={resultsHavePrice} />
           <ul className="market-list">
-            {results.map((match) => {
-              const key = marketKey(match.food);
-              const savedItem = savedByKey.get(key);
-              const preview: MarketItem = {
-                key,
-                food: match.food,
-                nutrition: match.nutrition,
-                observations: savedItem?.observations ?? [],
-                packageWeightG: null,
-                paidPrice: null,
-                paidCurrency: savedItem?.paidCurrency ?? "USD",
-              };
-              return (
-                <MarketRow
-                  key={key}
-                  item={preview}
-                  mode="result"
-                  onAdd={() => handleAddResult(match)}
-                />
-              );
-            })}
+            {resultRows.map(({ key, item, match }) => (
+              <MarketRow
+                key={key}
+                item={item}
+                mode="result"
+                observe={observe}
+                showPriceColumns={resultsHavePrice}
+                onAdd={() => handleAddResult(match)}
+              />
+            ))}
           </ul>
         </section>
       )}
@@ -708,7 +789,7 @@ export default function MarketplacePanel() {
               {saved.length}
             </span>
           </div>
-          <MarketHead />
+          <MarketHead showPrice={savedHavePrice} />
           <ul className="market-list">
             {saved.map((item) => (
               <MarketRow
@@ -717,6 +798,9 @@ export default function MarketplacePanel() {
                 mode="saved"
                 expanded={expandedKey === item.key}
                 priceState={priceStates[item.key]}
+                image={item.food.barcode ? images[item.food.barcode.trim()] : null}
+                observe={observe}
+                showPriceColumns={savedHavePrice}
                 onToggle={() => handleToggle(item.key)}
                 onRemove={() => handleRemove(item.key)}
                 onPatch={(patch) => handlePatch(item.key, patch)}

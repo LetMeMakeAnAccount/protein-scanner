@@ -15,8 +15,6 @@ export type MarketItem = {
   packageWeightG: number | null;
   paidPrice: number | null;
   paidCurrency: string;
-  /** Hotlinked product photo; absent when a lookup did not return one. */
-  image?: string | null;
 };
 
 /**
@@ -76,13 +74,6 @@ function isObservation(value: unknown): value is PriceObservation {
   );
 }
 
-/** Only https photos are kept, so a stored record can never inject another scheme. */
-export function marketImage(value: unknown): string | null {
-  if (typeof value !== "string") return null;
-  const trimmed = value.trim();
-  return /^https:\/\//i.test(trimmed) ? trimmed : null;
-}
-
 function normalizeItem(value: unknown): MarketItem | null {
   if (value === null || typeof value !== "object") return null;
   const item = value as Partial<MarketItem>;
@@ -103,7 +94,6 @@ function normalizeItem(value: unknown): MarketItem | null {
     packageWeightG: positiveNumber(item.packageWeightG),
     paidPrice: positiveNumber(item.paidPrice),
     paidCurrency: currency,
-    image: marketImage(item.image),
   };
 }
 
@@ -138,7 +128,6 @@ export function upsertMarketItem(
   items: MarketItem[],
   match: FoodMatch,
   observations?: PriceObservation[],
-  image?: string | null,
 ): { items: MarketItem[]; item: MarketItem } {
   const key = marketKey(match.food);
   const existing = items.find((entry) => entry.key === key);
@@ -150,7 +139,6 @@ export function upsertMarketItem(
     packageWeightG: existing?.packageWeightG ?? null,
     paidPrice: existing?.paidPrice ?? null,
     paidCurrency: existing?.paidCurrency ?? existing?.observations[0]?.currency ?? "USD",
-    image: marketImage(image) ?? existing?.image ?? null,
   };
   return { items: [item, ...items.filter((entry) => entry.key !== key)].slice(0, MARKET_LIMIT), item };
 }

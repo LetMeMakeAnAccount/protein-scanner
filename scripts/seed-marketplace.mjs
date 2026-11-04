@@ -15,7 +15,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function fetchCategory(category) {
   const url = `https://world.openfoodfacts.org/api/v2/search?categories_tags=en:${category}` +
-    `&fields=code,product_name,brands,nutriments,quantity,countries_tags,image_front_small_url,image_front_url` +
+    `&fields=code,product_name,brands,nutriments,quantity,countries_tags` +
     `&page_size=60&sort_by=popularity_key`;
   const response = await fetch(url, { headers: { "User-Agent": UA } });
   if (!response.ok) throw new Error(`${category}: HTTP ${response.status}`);
@@ -45,21 +45,6 @@ function gramsFromQuantity(text) {
   return grams < 40 ? null : grams;
 }
 
-function imageFrom(product) {
-  for (const candidate of [product.image_front_small_url, product.image_front_url]) {
-    if (typeof candidate !== "string") continue;
-    try {
-      const url = new URL(candidate.trim());
-      if (url.protocol !== "https:") continue;
-      if (!/(^|\.)openfoodfacts\.org$/.test(url.hostname)) continue;
-      return url.toString();
-    } catch {
-      // ignore malformed image URLs
-    }
-  }
-  return null;
-}
-
 const byCode = new Map();
 for (const category of categories) {
   try {
@@ -81,7 +66,6 @@ for (const category of categories) {
         kcal: Math.round(kcal),
         packageGrams: gramsFromQuantity(product.quantity),
         packageLabel: typeof product.quantity === "string" ? product.quantity.slice(0, 40) : null,
-        image: imageFrom(product),
         country: Array.isArray(product.countries_tags) && product.countries_tags.includes("en:united-states") ? "US" : null,
       });
     }

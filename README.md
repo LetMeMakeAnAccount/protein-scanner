@@ -120,6 +120,30 @@ Observations are returned newest first by observation date; `pricePer` is `UNIT`
 
 Open Prices data is contributed by the community and is made available under the [Open Database License (ODbL)](https://opendatacommons.org/licenses/odbl/1-0/). When displaying or reusing it, credit Open Prices and link to [prices.openfoodfacts.org](https://prices.openfoodfacts.org/). These are historical community observations, not live retailer prices or offers: they can be stale, incomplete, or tied to a different package size, and the app does not convert between currencies.
 
+## Product images (Open Food Facts)
+
+The marketplace catalog no longer bundles photo URLs. `GET /api/images?barcodes=<csv>` resolves product photos at runtime from Open Food Facts:
+
+```json
+{
+  "ok": true,
+  "data": {
+    "images": {
+      "012345678905": "https://images.openfoodfacts.org/images/products/012/345/678/905/front_en.3.200.jpg",
+      "000000000000": null
+    }
+  }
+}
+```
+
+Send 1 to 12 unique barcodes of 4 to 24 digits each, comma-separated, as the only query parameter. A missing, malformed, duplicated, over-limit, or unknown parameter returns 400 `invalid_input`; invalid-input responses are sent with `Cache-Control: no-store`.
+
+For each barcode the server reads `image_front_small_url`, then `image_front_url` from the Open Food Facts v2 product API. Only `https:` URLs on `openfoodfacts.org` or a `*.openfoodfacts.org` subdomain are returned; any other value, a product without a usable photo, an upstream failure, or a request past the endpoint budget is reported as `null` without failing the rest of the batch. Successful responses use `Cache-Control: public, max-age=3600, stale-while-revalidate=86400` because these photo URLs are immutable and contain no user data.
+
+The server caches up to 500 barcodes in memory for 24 hours, shares one upstream request per barcode, limits upstream concurrency to four, applies a 3.5-second timeout per product, and stops unresolved lookups after roughly 8 seconds. The endpoint needs no API key, does not use the user's IP address, and does not log barcode values.
+
+Product photos are fetched directly from Open Food Facts and are made available under [CC BY-SA](https://world.openfoodfacts.org/terms-of-use). The marketplace credits Open Food Facts for the catalog and its images.
+
 ## Privacy
 
 - Submitted photos are sent to Meta for analysis only, after the explicit opt-in, and are not kept by the app. Meta's handling is under its own terms.
