@@ -37,6 +37,12 @@ export type Price = {
   observedAt?: string;
 };
 
+/** Net quantity printed on a package, exactly as read (no unit conversion). */
+export type PackageSize = {
+  amount: number;
+  unit: "g" | "kg" | "oz" | "lb" | "ml" | "fl_oz";
+};
+
 export type ConfirmedInput = { food: Food; nutrition: Nutrition | null; price: Price | null };
 export type Metric = { value: number; unit: string } | { unavailable: string };
 export type Calculation = { proteinPerCurrency: Metric; proteinPer100Kcal: Metric };
@@ -45,6 +51,10 @@ export type Candidate = {
   barcode: string | null;
   price: Price | null;
   labelNutrition: Nutrition | null;
+  /** Model output always carries this key, but older candidates omit it. */
+  packageSize?: PackageSize | null;
+  /** Deterministically derived mass; null for volume units or implausible values. */
+  packageSizeGrams?: number | null;
   uncertainties: string[];
 };
 export type ImageInput = { bytes: Uint8Array; mediaType: string };

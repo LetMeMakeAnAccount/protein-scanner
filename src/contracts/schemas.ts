@@ -48,6 +48,12 @@ export const nutritionSchema = z.object({
   source: sourceSchema,
 }).strict();
 
+export const packageSizeSchema = z.object({
+  // Raw model reading is kept even when implausible; only packageSizeGrams is screened.
+  amount: z.number(),
+  unit: z.enum(["g", "kg", "oz", "lb", "ml", "fl_oz"]),
+}).strict();
+
 export const priceSchema = z.object({
   amount: positive,
   currency,
@@ -69,6 +75,8 @@ export const candidateSchema = z.object({
   labelNutrition: nutritionSchema.refine(
     (value) => value.source.kind === "label" && Boolean(value.source.visibleText),
   ).nullable(),
+  packageSize: packageSizeSchema.nullable().optional(),
+  packageSizeGrams: z.number().finite().positive().max(100_000).nullable().optional(),
   uncertainties: z.array(text).max(100),
 }).strict();
 

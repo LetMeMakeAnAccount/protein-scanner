@@ -1,14 +1,16 @@
 import { z } from "zod";
 import { basisSchema, nutritionSchema, parseCandidate, priceSchema, sourceSchema } from "../../contracts/schemas";
-import type { Candidate } from "../../contracts/types";
+import type { Candidate, PackageSize } from "../../contracts/types";
 
 const basis = basisSchema.omit({ count: true });
 const labelSource = sourceSchema.pick({ label: true, visibleText: true }).extend({ kind: z.literal("label"), visibleText: sourceSchema.shape.visibleText.unwrap() }).strict();
+const packageUnits = ["g", "kg", "oz", "lb", "ml", "fl_oz"] as const;
 const modelCandidate = z.object({
   item: z.string().max(1000).refine((value) => value.trim().length > 0).nullable(),
   barcode: z.string().max(1000).refine((value) => value.trim().length > 0).nullable(),
   price: priceSchema.omit({ observedAt: true }).extend({ basis, source: z.literal("label") }).strict().nullable(),
   labelNutrition: nutritionSchema.extend({ basis, source: labelSource }).strict().nullable(),
+  packageSize: z.object({ amount: z.number(), unit: z.enum(packageUnits) }).strict().nullable(),
   uncertainties: z.array(z.string().max(1000).refine((value) => value.trim().length > 0)).max(100),
 }).strict();
 
@@ -16,11 +18,18 @@ const MAX_PRICE = 100_000;
 const MAX_PROTEIN_G = 100;
 const MAX_ENERGY_KCAL = 900;
 const MAX_UNCERTAINTIES = 100;
+const MAX_PACKAGE_GRAMS = 100_000;
 const currencyCodes = new Set(Intl.supportedValuesOf("currency"));
 
 const priceUncertainty = "Price looked implausible and was ignored; enter it yourself.";
 const proteinUncertainty = "Protein value looked implausible and was ignored.";
 const energyUncertainty = "Energy value looked implausible and was ignored.";
+const volumeUncertainty = "Package volume, not weight; enter grams if the label gives a drained weight.";
+
+/** Exact factors; ounces are mass here, never reinterpreted as grams. */
+const gramsPerUnit: Partial<Record<PackageSize["unit"], number>> = {
+  g: 1, kg: 1000, oz: 28.349523125, lb: 453.59237,
+};
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -41,6 +50,45 @@ function addUncertainty(uncertainties: unknown[], message: string): void {
   // The contract caps the list; keep screening from making an otherwise valid candidate invalid.
   if (uncertainties.length >= MAX_UNCERTAINTIES) uncertainties.shift();
   uncertainties.push(message);
+}
+
+function appendUncertainty(uncertainties: string[], message: string): string[] {
+  if (uncertainties.includes(message)) return uncertainties;
+  const next = [...uncertainties];
+  addUncertainty(next, message);
+  return next;
+}
+
+function isPlausiblePackageAmount(amount: number): boolean {
+  return Number.isFinite(amount) && amount > 0 && amount <= MAX_PACKAGE_GRAMS;
+}
+
+/** Mass conversion is deterministic; volume has no density, so it stays unmeasured. */
+function gramsFor(packageSize: PackageSize): number | null {
+  const factor = gramsPerUnit[packageSize.unit];
+  if (factor === undefined) return null;
+  if (!isPlausiblePackageAmount(packageSize.amount)) return null;
+  const grams = packageSize.amount * factor;
+  if (!Number.isFinite(grams) || grams > MAX_PACKAGE_GRAMS) return null;
+  return Math.round(grams * 100) / 100;
+}
+
+/** Keep the printed quantity and attach its grams, never inventing a volume-to-mass mapping. */
+function withPackageGrams(candidate: Candidate): Candidate {
+  const packageSize = candidate.packageSize ?? null;
+  if (!packageSize) return { ...candidate, packageSize: null, packageSizeGrams: null };
+  const isVolume = packageSize.unit === "ml" || packageSize.unit === "fl_oz";
+  if (isVolume) {
+    return {
+      ...candidate,
+      packageSize,
+      packageSizeGrams: null,
+      uncertainties: isPlausiblePackageAmount(packageSize.amount)
+        ? appendUncertainty(candidate.uncertainties, volumeUncertainty)
+        : candidate.uncertainties,
+    };
+  }
+  return { ...candidate, packageSize, packageSizeGrams: gramsFor(packageSize) };
 }
 
 /**
@@ -107,7 +155,7 @@ export function parseMuseResponse(raw: unknown): Candidate {
   try {
     if (typeof raw === "string" && raw.length > 65536) throw new Error();
     const value = typeof raw === "string" ? JSON.parse(raw) : raw;
-    return parseCandidate(modelCandidate.parse(screenCandidate(value)));
+    return withPackageGrams(parseCandidate(modelCandidate.parse(screenCandidate(value))));
   } catch {
     throw new Error("Invalid model response");
   }

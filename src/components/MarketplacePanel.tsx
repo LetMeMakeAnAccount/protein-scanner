@@ -1,7 +1,15 @@
 "use client";
 
-import React, { useEffect, useId, useRef, useState } from "react";
+import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import { ApiError, lookupBarcode, searchFoods, type FoodMatch } from "../client/api";
+import {
+  catalogMatch,
+  catalogProteinPer100Kcal,
+  catalogProteinPerDollar,
+  catalogSavedPrice,
+  filterCatalog,
+  type CatalogFood,
+} from "../client/catalog";
 import { formatNumber } from "../client/format";
 import {
   MARKET_LIMIT,
@@ -75,6 +83,70 @@ function MarketHead() {
       <span>Protein/100 kcal</span>
       <span />
     </div>
+  );
+}
+
+function CatalogHead() {
+  return (
+    <div className="market-table-head catalog-table-head" aria-hidden="true">
+      <span>Food</span>
+      <span>Protein</span>
+      <span>Kcal</span>
+      <span>Protein/100 kcal</span>
+      <span>Protein/$</span>
+      <span />
+    </div>
+  );
+}
+
+type CatalogRowProps = {
+  food: CatalogFood;
+  price: { value: number; currency: string } | null;
+  onAdd: () => void;
+};
+
+function CatalogRow({ food, price, onAdd }: CatalogRowProps) {
+  const perKcal = catalogProteinPer100Kcal(food);
+  const perDollar = catalogProteinPerDollar(food, price);
+  const meta = [food.packageLabel, food.country].filter(Boolean).join(" · ");
+
+  return (
+    <li className="market-item catalog-item" onClick={onAdd}>
+      <div className="market-grid catalog-grid">
+        <div className="market-ident">
+          <h3 className="market-name">{food.name}</h3>
+          <span className="market-barcode">
+            {food.code}
+            {meta ? ` · ${meta}` : ""}
+          </span>
+        </div>
+        <Cell label="Protein" column="protein" value={`${formatNumber(food.proteinG)} g`} />
+        <Cell label="Kcal" column="kcal" value={`${formatNumber(food.kcal)} kcal`} />
+        <Cell
+          label="Protein/100 kcal"
+          column="per-kcal"
+          value={perKcal === null ? DASH : `${formatNumber(perKcal)} g/100 kcal`}
+        />
+        <Cell
+          label="Protein/$"
+          column="per-dollar"
+          value={perDollar === null ? DASH : `${formatNumber(perDollar)} g/${price?.currency ?? "USD"}`}
+          highlighted
+        />
+        <div className="market-actions" aria-hidden="true">
+          <span className="market-action market-action-primary">Add</span>
+        </div>
+      </div>
+      <button
+        type="button"
+        className="catalog-hit"
+        aria-label={`Add ${food.name} to list`}
+        onClick={(event) => {
+          event.stopPropagation();
+          onAdd();
+        }}
+      />
+    </li>
   );
 }
 
@@ -287,6 +359,8 @@ export default function MarketplacePanel() {
   const [error, setError] = useState("");
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [priceStates, setPriceStates] = useState<Record<string, PriceState>>({});
+  const [catalogQuery, setCatalogQuery] = useState("");
+  const [catalogLimit, setCatalogLimit] = useState(40);
   const lookupRequestRef = useRef(0);
   const savedRef = useRef<MarketItem[]>([]);
 
@@ -416,6 +490,23 @@ export default function MarketplacePanel() {
     }
   }
 
+  function handleAddCatalog(food: CatalogFood): void {
+    const match = catalogMatch(food);
+    const key = marketKey(match.food);
+    const existing = savedRef.current.find((item) => item.key === key);
+    const { items } = upsertMarketItem(savedRef.current, match);
+    const packageWeightG =
+      existing?.packageWeightG ??
+      (food.packageGrams !== null && Number.isFinite(food.packageGrams) && food.packageGrams > 0
+        ? food.packageGrams
+        : null);
+    commitSaved(packageWeightG === null ? items : patchMarketItem(items, key, { packageWeightG }));
+    setResults((current) => current.filter((result) => marketKey(result.food) !== key));
+    setExpandedKey(key);
+    setError("");
+    setStatus("");
+  }
+
   function handleToggle(key: string): void {
     if (expandedKey === key) {
       setExpandedKey(null);
@@ -447,6 +538,8 @@ export default function MarketplacePanel() {
   }
 
   const savedByKey = new Map(saved.map((item) => [item.key, item]));
+  const filteredCatalog = useMemo(() => filterCatalog(catalogQuery), [catalogQuery]);
+  const visibleCatalog = filteredCatalog.slice(0, catalogLimit);
 
   return (
     <section className="card marketplace" aria-labelledby="marketplace-heading">
@@ -499,6 +592,68 @@ export default function MarketplacePanel() {
           {error}
         </p>
       )}
+
+      <section className="market-section market-catalog" aria-labelledby="market-catalog-heading">
+        <div className="market-section-head">
+          <h3 id="market-catalog-heading">Browse foods</h3>
+          <span className="market-count" aria-label={`${filteredCatalog.length} foods`}>
+            {filteredCatalog.length}
+          </span>
+        </div>
+        <div className="field catalog-filter">
+          <label htmlFor="market-catalog-filter">Filter foods</label>
+          <input
+            id="market-catalog-filter"
+            type="search"
+            value={catalogQuery}
+            autoComplete="off"
+            placeholder="Filter by name or barcode"
+            onChange={(event) => {
+              setCatalogQuery(event.target.value);
+              setCatalogLimit(40);
+            }}
+          />
+        </div>
+
+        {visibleCatalog.length > 0 ? (
+          <>
+            <CatalogHead />
+            <ul className="market-list" aria-label="Catalog foods">
+              {visibleCatalog.map((food) => {
+                const key = marketKey({ name: food.name, barcode: food.code });
+                return (
+                  <CatalogRow
+                    key={`${food.code}-${food.name}`}
+                    food={food}
+                    price={catalogSavedPrice(savedByKey.get(key))}
+                    onAdd={() => handleAddCatalog(food)}
+                  />
+                );
+              })}
+            </ul>
+            <p className="catalog-count muted small">
+              Showing {visibleCatalog.length} of {filteredCatalog.length}
+            </p>
+            {filteredCatalog.length > catalogLimit && (
+              <div className="action-row catalog-more">
+                <button
+                  type="button"
+                  className="button"
+                  onClick={() => setCatalogLimit((current) => current + 40)}
+                >
+                  Show more
+                </button>
+              </div>
+            )}
+          </>
+        ) : (
+          <p className="muted small" role="status">
+            No foods match that filter.
+          </p>
+        )}
+
+        <p className="market-credit">Catalog: Open Food Facts (ODbL)</p>
+      </section>
 
       {results.length > 0 && (
         <section className="market-section" aria-labelledby="market-results-heading">

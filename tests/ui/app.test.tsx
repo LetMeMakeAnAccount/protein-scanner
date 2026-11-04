@@ -1,5 +1,5 @@
 import React from "react";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import Home from "../../src/app/page";
 import { DIARY_KEY } from "../../src/client/diary";
@@ -39,6 +39,21 @@ const offFood = {
   servingsPerPackage: null,
 };
 const offNutrition = { proteinG: 13, energyKcal: 370, basis: { amount: 100, unit: "g" as const }, source: offFood.source };
+
+const labelSource = {
+  kind: "label" as const,
+  label: "Visible label",
+  visibleText: "10 g protein per 100 g",
+};
+
+/** A scan result with an item, a shelf price and label nutrition, but no package weight. */
+const scannedCandidate = {
+  item: "Chicken bites",
+  barcode: null,
+  price: { amount: 4, currency: "USD", basis: { amount: 1, unit: "package" as const }, source: "label" as const },
+  labelNutrition: { proteinG: 10, energyKcal: 100, basis: { amount: 100, unit: "g" as const }, source: labelSource },
+  uncertainties: ["Check the price"],
+};
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -81,6 +96,11 @@ function stubFrameCapture() {
   );
 }
 
+function stubObjectUrls() {
+  Object.defineProperty(URL, "createObjectURL", { value: vi.fn(() => "blob:preview"), configurable: true });
+  Object.defineProperty(URL, "revokeObjectURL", { value: vi.fn(), configurable: true });
+}
+
 const emptyCandidate = { item: null, barcode: null, price: null, labelNutrition: null, uncertainties: [] };
 
 async function fillManualAndConfirm(overrides: { packageAmount?: string } = {}) {
@@ -93,6 +113,38 @@ async function fillManualAndConfirm(overrides: { packageAmount?: string } = {}) 
   fireEvent.change(screen.getByLabelText(/protein \(g\)/i), { target: { value: "10" } });
   fireEvent.change(screen.getByLabelText(/energy \(kcal\)/i), { target: { value: "100" } });
   fireEvent.click(screen.getByRole("button", { name: /confirm and see results/i }));
+}
+
+/** Runs the camera sampling loop until the stubbed analysis request resolves. */
+async function runCameraScan(candidate: unknown) {
+  vi.useFakeTimers();
+  stubCamera();
+  stubFrameCapture();
+  const fetchMock = vi.fn(async () => jsonResponse({ ok: true, data: { candidate } }));
+  vi.stubGlobal("fetch", fetchMock);
+
+  render(<Home />);
+  fireEvent.click(screen.getByRole("button", { name: /scan with camera/i }));
+  for (let tick = 0; tick < 4 && fetchMock.mock.calls.length < 1; tick += 1) {
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2500);
+    });
+  }
+  vi.useRealTimers();
+  return fetchMock;
+}
+
+function uploadCandidate(candidate: unknown) {
+  const fetchMock = vi.fn(async () => jsonResponse({ ok: true, data: { candidate } }));
+  vi.stubGlobal("fetch", fetchMock);
+  stubImageDecode();
+  stubObjectUrls();
+
+  render(<Home />);
+  fireEvent.change(screen.getByLabelText(/upload photo/i), {
+    target: { files: [new File(["fake"], "photo.jpg", { type: "image/jpeg" })] },
+  });
+  return fetchMock;
 }
 
 describe("Protein Scanner UI", () => {
@@ -133,11 +185,92 @@ describe("Protein Scanner UI", () => {
     expect(screen.getByText(/test food/i)).toBeInTheDocument();
   });
 
-  it("shows honest Unavailable messaging when the package amount is missing, keeping the per-100-kcal metric", async () => {
+  it("estimates 100 g instead of hiding protein per dollar when the package amount is blank", async () => {
     render(<Home />);
     await fillManualAndConfirm({ packageAmount: "" });
-    expect(await screen.findByText(/Unavailable:/)).toBeInTheDocument();
+
+    expect(await screen.findByText("2.5 g/USD")).toBeInTheDocument();
+    expect(screen.getByText("Estimated 100 g")).toBeInTheDocument();
     expect(screen.getByText("10 g/100 kcal")).toBeInTheDocument();
+    expect(screen.queryByText(/Unavailable:/)).not.toBeInTheDocument();
+  });
+
+  it("auto-lands a scan on results with the ratio computed and no confirmation step", async () => {
+    const fetchMock = await runCameraScan(scannedCandidate);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(await screen.findByRole("heading", { name: /^results$/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 3, name: "Chicken bites" })).toBeInTheDocument();
+    expect(screen.getByText("2.5 g/USD")).toBeInTheDocument();
+    expect(screen.getByText("10 g/100 kcal")).toBeInTheDocument();
+    expect(screen.getByText("Check the label — values can be wrong.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /confirm and see results/i })).not.toBeInTheDocument();
+  });
+
+  it("pre-fills an unknown package as 100 g, labels it Estimated 100 g, and still computes per dollar", async () => {
+    await runCameraScan(scannedCandidate);
+
+    expect(await screen.findByRole("heading", { name: /^results$/i })).toBeInTheDocument();
+    expect(screen.getByLabelText(/package amount/i)).toHaveValue(100);
+    expect(screen.getByText("Estimated 100 g")).toBeInTheDocument();
+    expect(screen.getByText("2.5 g/USD")).toBeInTheDocument();
+    expect(screen.getByText("Estimated")).toBeInTheDocument();
+  });
+
+  it("uses the package weight read from the photo instead of an estimate", async () => {
+    await runCameraScan({ ...scannedCandidate, packageSizeGrams: 200 });
+
+    expect(await screen.findByRole("heading", { name: /^results$/i })).toBeInTheDocument();
+    expect(screen.getByLabelText(/package amount/i)).toHaveValue(200);
+    expect(screen.queryByText("Estimated 100 g")).not.toBeInTheDocument();
+    expect(screen.queryByText("Estimated")).not.toBeInTheDocument();
+    expect(screen.getByText("5 g/USD")).toBeInTheDocument();
+  });
+
+  it("falls back to the printed package size when only that field is present", async () => {
+    await runCameraScan({ ...scannedCandidate, packageSize: { amount: 200, unit: "g" } });
+
+    expect(await screen.findByRole("heading", { name: /^results$/i })).toBeInTheDocument();
+    expect(screen.getByLabelText(/package amount/i)).toHaveValue(200);
+    expect(screen.queryByText("Estimated 100 g")).not.toBeInTheDocument();
+    expect(screen.getByText("5 g/USD")).toBeInTheDocument();
+  });
+
+  it("shows a dash for protein per dollar when the price is missing but keeps protein per 100 kcal", async () => {
+    const candidate = {
+      ...scannedCandidate,
+      item: "Multivitamin bottle",
+      price: null,
+    };
+    await runCameraScan(candidate);
+
+    expect(await screen.findByRole("heading", { name: /^results$/i })).toBeInTheDocument();
+    const perDollar = screen.getByRole("group", { name: /protein per dollar/i });
+    expect(within(perDollar).getByText("—")).toBeInTheDocument();
+    expect(screen.getByText("10 g/100 kcal")).toBeInTheDocument();
+    expect(screen.getByLabelText(/price amount/i)).toHaveValue(null);
+    expect(screen.queryByText(/Unavailable:/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/A valid price and matching nutrition quantity are required/i),
+    ).not.toBeInTheDocument();
+  });
+
+  it("recalculates as values are edited, with no submit button in the edit section", async () => {
+    await runCameraScan(scannedCandidate);
+    expect(await screen.findByRole("heading", { name: /^results$/i })).toBeInTheDocument();
+    expect(screen.getByText("2.5 g/USD")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/protein \(g\)/i), { target: { value: "20" } });
+    expect(await screen.findByText("5 g/USD")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/energy \(kcal\)/i), { target: { value: "200" } });
+    expect(await screen.findByText("10 g/100 kcal")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/price amount/i), { target: { value: "8" } });
+    expect(await screen.findByText("2.5 g/USD")).toBeInTheDocument();
+
+    expect(screen.queryByRole("button", { name: /confirm and see results/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /save values|update results/i })).not.toBeInTheDocument();
   });
 
   it("adds to the diary, stays in this browser, reloads, and deletes", async () => {
@@ -218,33 +351,57 @@ describe("Protein Scanner UI", () => {
     expect(screen.getByLabelText(/item name/i)).toHaveValue("Oats");
   });
 
-  it("analyzes an uploaded photo immediately with only the image in the form, pre-filling label nutrition as checkable", async () => {
-    const candidate = {
-      item: "Uploaded bars",
-      barcode: null,
-      price: { amount: 3.5, currency: "USD", basis: { amount: 1, unit: "package" }, source: "label" },
-      labelNutrition: { proteinG: 20, energyKcal: 200, basis: { amount: 100, unit: "g" }, source: { kind: "label", label: "Visible label", visibleText: "Protein 20 g per 100 g" } },
-      uncertainties: ["Check the price"],
-    };
-    const fetchMock = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
-      const body = init?.body as FormData;
-      expect(body.has("metaConsent")).toBe(false);
-      expect(body.get("image")).toBeInstanceOf(Blob);
-      return jsonResponse({ ok: true, data: { candidate } });
-    });
+  it("labels an Open Food Facts match on results with the short source label", async () => {
+    const fetchMock = vi.fn(async () => jsonResponse({ ok: true, data: [{ food: offFood, nutrition: offNutrition }] }));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<Home />);
+    fireEvent.click(screen.getByRole("button", { name: /enter manually/i }));
+    fireEvent.change(screen.getByLabelText(/item name/i), { target: { value: "Oats" } });
+    fireEvent.click(screen.getByRole("button", { name: /find nutrition/i }));
+    expect(await screen.findByText(/oats from off/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /use this match/i }));
+    fireEvent.click(screen.getByRole("button", { name: /confirm and see results/i }));
+
+    expect(await screen.findByRole("heading", { name: /^results$/i })).toBeInTheDocument();
+    expect(screen.getByText("From Open Food Facts")).toBeInTheDocument();
+    expect(screen.getByText("3.51 g/100 kcal")).toBeInTheDocument();
+    const perDollar = screen.getByRole("group", { name: /protein per dollar/i });
+    expect(within(perDollar).getByText("—")).toBeInTheDocument();
+  });
+
+  it("auto-lands an uploaded photo on results with every value pre-filled", async () => {
+    uploadCandidate(scannedCandidate);
+
+    expect(await screen.findByRole("heading", { name: /^results$/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /confirm and see results/i })).not.toBeInTheDocument();
+    expect(screen.getByDisplayValue("Chicken bites")).toBeInTheDocument();
+    expect(screen.getByLabelText(/price amount/i)).toHaveValue(4);
+    expect(screen.getByLabelText(/protein \(g\)/i)).toHaveValue(10);
+    expect(screen.getByLabelText(/energy \(kcal\)/i)).toHaveValue(100);
+    expect(screen.getByLabelText(/package amount/i)).toHaveValue(100);
+    expect(screen.getByText("Estimated 100 g")).toBeInTheDocument();
+    expect(screen.getByText("2.5 g/USD")).toBeInTheDocument();
+    expect(screen.getByText("10 g/100 kcal")).toBeInTheDocument();
+    expect(screen.getByText("From label")).toBeInTheDocument();
+  });
+
+  it("takes the first candidate when the server sends several, with no chooser", async () => {
+    const second = { ...scannedCandidate, item: "Second candidate", price: null };
+    const fetchMock = vi.fn(async () =>
+      jsonResponse({ ok: true, data: { candidates: [scannedCandidate, second] } }),
+    );
     vi.stubGlobal("fetch", fetchMock);
     stubImageDecode();
-    Object.defineProperty(URL, "createObjectURL", { value: vi.fn(() => "blob:preview"), configurable: true });
-    Object.defineProperty(URL, "revokeObjectURL", { value: vi.fn(), configurable: true });
+    stubObjectUrls();
 
     render(<Home />);
-    const input = screen.getByLabelText(/upload photo/i) as HTMLInputElement;
-    fireEvent.change(input, { target: { files: [new File(["fake"], "photo.jpg", { type: "image/jpeg" })] } });
+    fireEvent.change(screen.getByLabelText(/upload photo/i), {
+      target: { files: [new File(["fake"], "photo.jpg", { type: "image/jpeg" })] },
+    });
 
-    expect(await screen.findByDisplayValue("Uploaded bars")).toBeInTheDocument();
-    expect(screen.getByText(/from label — check it/i)).toBeInTheDocument();
-    expect(screen.getByText(/check the price/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/protein \(g\)/i)).toHaveValue(20);
+    expect(await screen.findByRole("heading", { level: 3, name: "Chicken bites" })).toBeInTheDocument();
+    expect(screen.queryByText("Second candidate")).not.toBeInTheDocument();
+    expect(screen.queryByRole("radio")).not.toBeInTheDocument();
   });
 
   it("explains a denied camera on the home screen without blocking manual entry", async () => {
@@ -258,10 +415,7 @@ describe("Protein Scanner UI", () => {
     expect(screen.getByRole("button", { name: /enter manually/i })).toBeInTheDocument();
   });
 
-  it("stops sampling on an item with no price, opens review with the name filled and price blank, and stays honest through results and diary", async () => {
-    vi.useFakeTimers();
-    stubCamera();
-    stubFrameCapture();
+  it("opens results for a scanned item with no price and stays usable through diary", async () => {
     const candidate = {
       item: "Multivitamin bottle",
       barcode: null,
@@ -274,75 +428,31 @@ describe("Protein Scanner UI", () => {
       },
       uncertainties: [],
     };
-    const fetchMock = vi.fn(async () => jsonResponse({ ok: true, data: { candidate } }));
-    vi.stubGlobal("fetch", fetchMock);
-
-    render(<Home />);
-    fireEvent.click(screen.getByRole("button", { name: /scan with camera/i }));
-    for (let tick = 0; tick < 4 && fetchMock.mock.calls.length < 1; tick += 1) {
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(2500);
-      });
-    }
-    vi.useRealTimers();
+    const fetchMock = await runCameraScan(candidate);
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(await screen.findByRole("heading", { name: /^results$/i })).toBeInTheDocument();
     expect(screen.getByLabelText(/item name/i)).toHaveValue("Multivitamin bottle");
     expect(screen.getByLabelText(/price amount/i)).toHaveValue(null);
     expect(screen.queryByText(/enter an item name before confirming/i)).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: /confirm and see results/i }));
-    expect(
-      await screen.findByText(/Unavailable: A valid price and matching nutrition quantity are required\./),
-    ).toBeInTheDocument();
     expect(screen.getByText("10 g/100 kcal")).toBeInTheDocument();
-    expect(screen.getByText(/price: not given/i)).toBeInTheDocument();
+    expect(screen.getByText("—")).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText(/amount to add/i), { target: { value: "100" } });
     fireEvent.click(screen.getByRole("button", { name: /add to today's diary/i }));
     expect(await screen.findByText(/added to today's diary/i)).toBeInTheDocument();
   });
 
-  it("keeps the item prominent when both price and nutrition are missing, shows both unavailable reasons, and offers a name search", async () => {
-    vi.useFakeTimers();
-    stubCamera();
-    stubFrameCapture();
-    const candidate = { ...emptyCandidate, item: "Multivitamin bottle" };
-    const fetchMock = vi.fn(async (url: string | URL | Request) => {
-      const target = String(url);
-      if (target.includes("/api/scan/analyze")) return jsonResponse({ ok: true, data: { candidate } });
-      if (target.includes("/api/foods/search")) return jsonResponse({ ok: true, data: [] });
-      throw new Error(`Unexpected request: ${target}`);
-    });
-    vi.stubGlobal("fetch", fetchMock);
+  it("shows dashes instead of explanation sentences when both price and nutrition are missing", async () => {
+    await runCameraScan({ ...emptyCandidate, item: "Multivitamin bottle" });
 
-    render(<Home />);
-    fireEvent.click(screen.getByRole("button", { name: /scan with camera/i }));
-    for (let tick = 0; tick < 4 && fetchMock.mock.calls.length < 1; tick += 1) {
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(2500);
-      });
-    }
-    vi.useRealTimers();
-
+    expect(await screen.findByRole("heading", { name: /^results$/i })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 3, name: "Multivitamin bottle" })).toBeInTheDocument();
-    expect(screen.getByLabelText(/item name/i)).toHaveValue("Multivitamin bottle");
-    expect(screen.getByLabelText(/price amount/i)).toHaveValue(null);
-
-    fireEvent.click(screen.getByRole("button", { name: /confirm and see results/i }));
-    expect(await screen.findByText(/item: multivitamin bottle/i)).toBeInTheDocument();
+    expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(2);
+    expect(screen.queryByText(/Unavailable:/)).not.toBeInTheDocument();
     expect(
-      screen.getByText(/Unavailable: A valid price and matching nutrition quantity are required\./),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/Unavailable: Protein and positive kcal on the same basis are required\./),
-    ).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: /find nutrition by name/i }));
-    expect(await screen.findByText(/no open food facts match for that name/i)).toBeInTheDocument();
-    expect(
-      fetchMock.mock.calls.some(([url]) => String(url).includes("/api/foods/search?q=Multivitamin%20bottle")),
-    ).toBe(true);
+      screen.queryByText(/Protein and positive kcal on the same basis are required/i),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /find nutrition by name/i })).not.toBeInTheDocument();
   });
 
   it.each([
@@ -373,7 +483,7 @@ describe("Protein Scanner UI", () => {
     expect(screen.getByRole("button", { name: /enter manually/i })).toBeInTheDocument();
   });
 
-  it("stops after four empty analyses and opens review with the fallback message", async () => {
+  it("stops after four empty analyses and opens the manual form with the fallback message", async () => {
     vi.useFakeTimers();
     stubCamera();
     stubFrameCapture();

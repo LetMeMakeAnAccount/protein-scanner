@@ -1,11 +1,12 @@
 import React from "react";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { installMemoryStorage, makeFood, makeNutrition, offSource } from "./testUtils";
 
 installMemoryStorage();
 
 import Home from "../../src/app/page";
+import { CATALOG } from "../../src/client/catalog";
 import { MARKET_KEY } from "../../src/client/market";
 
 type Observation = {
@@ -301,5 +302,105 @@ describe("Marketplace tab", () => {
     expect(screen.getByRole("link", { name: "Search Target" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Search Walmart" })).not.toBeInTheDocument();
     expect(fetchMock.mock.calls.some(([url]) => String(url).includes("/api/prices"))).toBe(false);
+  });
+});
+
+describe("Marketplace bundled catalog", () => {
+  function catalogList(): HTMLElement {
+    return screen.getByRole("list", { name: "Catalog foods" });
+  }
+
+  function catalogRow(name: string): HTMLElement {
+    const heading = screen.getByRole("heading", { name });
+    const row = heading.closest("li");
+    if (!row) throw new Error(`No catalog row found for ${name}`);
+    return row as HTMLElement;
+  }
+
+  it("browses seed rows without typing and keeps the first page at 40", () => {
+    stubApi();
+    render(<Home />);
+    openMarketplace();
+
+    expect(screen.getByRole("heading", { name: "Browse foods" })).toBeInTheDocument();
+    expect(within(catalogList()).getAllByRole("listitem")).toHaveLength(40);
+
+    const first = CATALOG[0];
+    const row = catalogRow(first.name);
+    expect(cell(row, "protein")).toHaveTextContent("82 g");
+    expect(cell(row, "kcal")).toHaveTextContent("361 kcal");
+    expect(cell(row, "per-kcal")).toHaveTextContent("22.71 g/100 kcal");
+    expect(cell(row, "per-dollar")).toHaveTextContent("—");
+    expect(screen.getByText("Catalog: Open Food Facts (ODbL)")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /show more/i })).toBeInTheDocument();
+  });
+
+  it("narrows the catalog with the filter input and hides Show more", () => {
+    stubApi();
+    render(<Home />);
+    openMarketplace();
+
+    fireEvent.change(screen.getByLabelText(/filter foods/i), { target: { value: "Isopure" } });
+
+    expect(within(catalogList()).getAllByRole("listitem")).toHaveLength(1);
+    expect(screen.getByRole("heading", { name: CATALOG[0].name })).toBeInTheDocument();
+    expect(screen.queryByText(CATALOG[1].name)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /show more/i })).not.toBeInTheDocument();
+  });
+
+  it("adds a catalog row and prefills its package weight", () => {
+    stubApi();
+    render(<Home />);
+    openMarketplace();
+
+    const food = CATALOG.find((entry) => entry.name === "RXBAR Chocolate Sea Salt");
+    if (!food) throw new Error("Seed row missing");
+
+    fireEvent.change(screen.getByLabelText(/filter foods/i), { target: { value: "RXBAR Chocolate Sea Salt" } });
+    fireEvent.click(screen.getByRole("button", { name: `Add ${food.name} to list` }));
+
+    expect(screen.getByLabelText(/package weight \(g\)/i)).toHaveValue(food.packageGrams);
+    const stored = JSON.parse(localStorage.getItem(MARKET_KEY) ?? "[]");
+    expect(stored).toHaveLength(1);
+    expect(stored[0].food).toMatchObject({
+      name: food.name,
+      barcode: food.code,
+      source: { kind: "off", label: "Open Food Facts" },
+      packageBasis: { amount: food.packageGrams, unit: "g" },
+    });
+    expect(stored[0].nutrition).toMatchObject({
+      proteinG: food.proteinG,
+      energyKcal: food.kcal,
+      basis: { amount: 100, unit: "g" },
+    });
+    expect(stored[0].packageWeightG).toBe(food.packageGrams);
+  });
+
+  it("expands the catalog in pages of 40 with Show more", () => {
+    stubApi();
+    render(<Home />);
+    openMarketplace();
+
+    expect(within(catalogList()).getAllByRole("listitem")).toHaveLength(40);
+    fireEvent.click(screen.getByRole("button", { name: /show more/i }));
+    expect(within(catalogList()).getAllByRole("listitem")).toHaveLength(80);
+    expect(screen.getByText(CATALOG[40].name)).toBeInTheDocument();
+  });
+
+  it("shows protein per dollar once a saved price exists", () => {
+    stubApi();
+    render(<Home />);
+    openMarketplace();
+
+    const food = CATALOG.find((entry) => entry.name === "RXBAR Chocolate Sea Salt");
+    if (!food) throw new Error("Seed row missing");
+
+    fireEvent.change(screen.getByLabelText(/filter foods/i), { target: { value: "RXBAR Chocolate Sea Salt" } });
+    fireEvent.click(screen.getByRole("button", { name: `Add ${food.name} to list` }));
+    fireEvent.change(screen.getByLabelText(/price paid/i), { target: { value: "2" } });
+
+    const catalog = catalogList();
+    const row = within(catalog).getByRole("heading", { name: food.name }).closest("li") as HTMLElement;
+    expect(cell(row, "per-dollar")).toHaveTextContent("6.01 g/USD");
   });
 });

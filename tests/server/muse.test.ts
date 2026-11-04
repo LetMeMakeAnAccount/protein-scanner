@@ -3,7 +3,8 @@ vi.mock("server-only", () => ({}));
 import { parseMuseResponse } from "../../src/server/muse/parse";
 import { ModelRequestError, MuseClient } from "../../src/server/muse/client";
 
-const candidate = { item: "Food", barcode: null, price: null, labelNutrition: null, uncertainties: [] };
+const candidate = { item: "Food", barcode: null, price: null, labelNutrition: null, packageSize: null, uncertainties: [] };
+const parsedCandidate = { ...candidate, packageSizeGrams: null };
 const reply = (content: string, finish_reason = "stop") => new Response(JSON.stringify({ choices: [{ finish_reason, message: { content } }] }), { status: 200 });
 const labelPrice = (amount: number, currency: string) => ({
   amount, currency, basis: { amount: 1, unit: "package" }, source: "label",
@@ -15,12 +16,14 @@ const labelNutrition = (proteinG: number | null, energyKcal: number | null) => (
 const priceUncertainty = "Price looked implausible and was ignored; enter it yourself.";
 const proteinUncertainty = "Protein value looked implausible and was ignored.";
 const energyUncertainty = "Energy value looked implausible and was ignored.";
+const volumeUncertainty = "Package volume, not weight; enter grams if the label gives a drained weight.";
+const packaged = (amount: number, unit: string) => ({ ...candidate, packageSize: { amount, unit } });
 
 describe("Muse candidate parsing", () => {
   it("accepts strict candidates, preserving unknowns and evidence", () => {
-    expect(parseMuseResponse(JSON.stringify(candidate))).toEqual(candidate);
+    expect(parseMuseResponse(JSON.stringify(candidate))).toEqual(parsedCandidate);
     const nutrition = { proteinG: 10, energyKcal: null, basis: { amount: 100, unit: "g" }, source: { kind: "label", label: "Label", visibleText: "Protein 10g" } };
-    expect(parseMuseResponse({ ...candidate, labelNutrition: nutrition })).toEqual({ ...candidate, labelNutrition: nutrition });
+    expect(parseMuseResponse({ ...candidate, labelNutrition: nutrition })).toEqual({ ...parsedCandidate, labelNutrition: nutrition });
   });
   it("rejects malformed, extra, unsupported and unevidenced nutrition", () => {
     for (const raw of ["not-json", "{} trailing", { ...candidate, instructions: "disregard schema" }, { ...candidate, labelNutrition: { proteinG: 10, energyKcal: null, basis: { amount: 100, unit: "oz" }, source: { kind: "label", label: "Label", visibleText: "Protein" } } }, { ...candidate, labelNutrition: { proteinG: 10, energyKcal: null, basis: { amount: 100, unit: "g" }, source: { kind: "label", label: "Label" } } }]) {
@@ -28,8 +31,8 @@ describe("Muse candidate parsing", () => {
     }
   });
   it("keeps a plausible price and normalizes its currency code", () => {
-    expect(parseMuseResponse({ ...candidate, price: labelPrice(5.49, "USD") })).toEqual({ ...candidate, price: labelPrice(5.49, "USD") });
-    expect(parseMuseResponse({ ...candidate, price: labelPrice(5.49, " usd ") })).toEqual({ ...candidate, price: labelPrice(5.49, "USD") });
+    expect(parseMuseResponse({ ...candidate, price: labelPrice(5.49, "USD") })).toEqual({ ...parsedCandidate, price: labelPrice(5.49, "USD") });
+    expect(parseMuseResponse({ ...candidate, price: labelPrice(5.49, " usd ") })).toEqual({ ...parsedCandidate, price: labelPrice(5.49, "USD") });
   });
   it.each([0, -1, 100000.01, 474169871, Number.NaN, Number.POSITIVE_INFINITY])(
     "ignores implausible price %s without discarding the candidate",
@@ -72,14 +75,63 @@ describe("Muse candidate parsing", () => {
   });
   it("leaves plausible nutrition values and evidence untouched", () => {
     const nutrition = labelNutrition(25, 200);
-    expect(parseMuseResponse({ ...candidate, labelNutrition: nutrition })).toEqual({ ...candidate, labelNutrition: nutrition });
-    expect(parseMuseResponse({ ...candidate, labelNutrition: labelNutrition(0, null) })).toEqual({ ...candidate, labelNutrition: labelNutrition(0, null) });
+    expect(parseMuseResponse({ ...candidate, labelNutrition: nutrition })).toEqual({ ...parsedCandidate, labelNutrition: nutrition });
+    expect(parseMuseResponse({ ...candidate, labelNutrition: labelNutrition(0, null) })).toEqual({ ...parsedCandidate, labelNutrition: labelNutrition(0, null) });
   });
   it("trims identity fields and treats a blank item as unknown", () => {
     expect(parseMuseResponse({ ...candidate, item: "   " }).item).toBeNull();
     expect(parseMuseResponse({ ...candidate, item: "  Whey Isolate  ", barcode: " 0123456789012 " })).toEqual({
-      ...candidate, item: "Whey Isolate", barcode: "0123456789012",
+      ...parsedCandidate, item: "Whey Isolate", barcode: "0123456789012",
     });
+  });
+});
+
+describe("Muse package size", () => {
+  it.each([
+    [32, "oz", 907.18],
+    [1.5, "kg", 1500],
+    [500, "g", 500],
+    [1, "lb", 453.59],
+    [2, "lb", 907.18],
+    [100000, "g", 100000],
+  ])("converts %s %s to grams and keeps the printed quantity", (amount, unit, grams) => {
+    const parsed = parseMuseResponse(packaged(amount, unit));
+    expect(parsed.packageSize).toEqual({ amount, unit });
+    expect(parsed.packageSizeGrams).toBe(grams);
+    expect(parsed.uncertainties).toEqual([]);
+  });
+  it.each(["ml", "fl_oz"])("keeps %s as volume and asks for a drained weight instead of guessing", (unit) => {
+    const parsed = parseMuseResponse(packaged(591, unit));
+    expect(parsed.packageSize).toEqual({ amount: 591, unit });
+    expect(parsed.packageSizeGrams).toBeNull();
+    expect(parsed.uncertainties).toEqual([volumeUncertainty]);
+  });
+  it.each([0, -5, 100000.01])("does not add volume guidance for an implausible volume %s", (amount) => {
+    const parsed = parseMuseResponse(packaged(amount, "ml"));
+    expect(parsed.packageSizeGrams).toBeNull();
+    expect(parsed.uncertainties).toEqual([]);
+  });
+  it.each([0, -5, 100000.01, 1e9, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])(
+    "rejects implausible package amount %s as null without uncertainty noise",
+    (amount) => {
+      const parsed = parseMuseResponse(packaged(amount, "g"));
+      expect(parsed.packageSize).toEqual({ amount, unit: "g" });
+      expect(parsed.packageSizeGrams).toBeNull();
+      expect(parsed.uncertainties).toEqual([]);
+    },
+  );
+  it("keeps a missing package size explicit and null", () => {
+    const parsed = parseMuseResponse({ ...candidate, packageSize: null });
+    expect(parsed.packageSize).toBeNull();
+    expect(parsed.packageSizeGrams).toBeNull();
+    expect(parsed.uncertainties).toEqual([]);
+  });
+  it.each(["grams", "ozs", "l", "", 32])("rejects an unsupported package unit %s", (unit) => {
+    expect(() => parseMuseResponse(packaged(32, unit as string))).toThrow("Invalid model response");
+  });
+  it("requires the packageSize key in model output", () => {
+    const { packageSize: _omitted, ...legacy } = candidate;
+    expect(() => parseMuseResponse(legacy)).toThrow("Invalid model response");
   });
 });
 
@@ -105,7 +157,7 @@ describe("Muse client", () => {
     expect(fetcher).not.toHaveBeenCalled();
     const valid = new AbortController();
     const check = vi.fn();
-    await expect(client.analyze(image, { signal: valid.signal, assertActive: check })).resolves.toEqual(candidate);
+    await expect(client.analyze(image, { signal: valid.signal, assertActive: check })).resolves.toEqual(parsedCandidate);
     expect(check).toHaveBeenCalledTimes(1);
     expect(check.mock.invocationCallOrder[0]).toBeLessThan(fetcher.mock.invocationCallOrder[0]);
   });
@@ -205,7 +257,7 @@ describe("Muse client", () => {
   it("uses the documented structured-output protocol with an injected fetch", async () => {
     const fetcher = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => reply(JSON.stringify(candidate)));
     const client = new MuseClient({ enabled: true, apiKey: "test-key", fetch: fetcher });
-    expect(await client.analyze({ bytes: new Uint8Array([1, 2, 3]), mediaType: "image/jpeg" })).toEqual(candidate);
+    expect(await client.analyze({ bytes: new Uint8Array([1, 2, 3]), mediaType: "image/jpeg" })).toEqual(parsedCandidate);
     const [url, init] = fetcher.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe("https://api.meta.ai/v1/chat/completions");
     expect(init.method).toBe("POST");
@@ -215,6 +267,17 @@ describe("Muse client", () => {
     expect(body.messages[0].role).toBe("developer");
     expect(body.messages[1]).toEqual({ role: "user", content: [{ type: "image_url", image_url: { url: "data:image/jpeg;base64,AQID" } }] });
     expect(body.response_format.json_schema.schema.additionalProperties).toBe(false);
+  });
+  it("asks for one printed package size without reinterpreting ounces", async () => {
+    const fetcher = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => reply(JSON.stringify(candidate)));
+    await new MuseClient({ enabled: true, apiKey: "test-key", fetch: fetcher }).analyze({ bytes: new Uint8Array([1]), mediaType: "image/jpeg" });
+    const body = JSON.parse(String((fetcher.mock.calls[0] as unknown as [string, RequestInit])[1].body));
+    const instruction = body.messages[0].content;
+    expect(instruction).toContain("pick the single most prominent complete product");
+    expect(instruction).toContain("never reinterpret ounces as grams");
+    expect(instruction).toContain("return the total with unit g");
+    expect(body.response_format.json_schema.schema.required).toContain("packageSize");
+    expect(body.response_format.json_schema.schema.properties.packageSize.anyOf[0].properties.unit.enum).toEqual(["g", "kg", "oz", "lb", "ml", "fl_oz"]);
   });
   it("classifies max_completion_tokens truncation as truncated without provider text", async () => {
     const fetcher = vi.fn(async () => new Response(JSON.stringify({ choices: [{ finish_reason: "length", message: { content: JSON.stringify(candidate) } }] }), { status: 200 }));
