@@ -1,5 +1,5 @@
 import React from "react";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { installMemoryStorage, makeFood, makeNutrition, offSource } from "./testUtils";
 
@@ -164,7 +164,8 @@ describe("Marketplace saved list", () => {
     await screen.findByRole("heading", { name: "Greek Yoghurt" });
 
     await waitFor(() => expect(JSON.parse(localStorage.getItem(MARKET_KEY) ?? "[]")).toHaveLength(1));
-    expect(screen.getAllByRole("heading", { name: /greek yog/i })).toHaveLength(1);
+    const savedSection = screen.getByRole("heading", { name: "Saved" }).closest("section") as HTMLElement;
+    expect(within(savedSection).getAllByRole("heading", { name: /greek yog/i })).toHaveLength(1);
     expect(JSON.parse(localStorage.getItem(MARKET_KEY) ?? "[]")[0].food.name).toBe("Greek Yoghurt");
   });
 

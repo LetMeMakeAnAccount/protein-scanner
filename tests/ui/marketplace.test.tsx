@@ -7,6 +7,7 @@ installMemoryStorage();
 
 import Home from "../../src/app/page";
 import { CATALOG } from "../../src/client/catalog";
+import { formatNumber } from "../../src/client/format";
 import { MARKET_KEY } from "../../src/client/market";
 
 type Observation = {
@@ -342,16 +343,21 @@ describe("Marketplace bundled catalog", () => {
 
     const first = CATALOG[0];
     const row = catalogRow(first.name);
-    expect(catalogLine(row)).toBe("P 82g · 361 kcal · 22.7 g/100kcal · $ —");
+    const perKcal = (first.proteinG / first.kcal) * 100;
+    expect(catalogLine(row)).toBe(
+      `P ${formatNumber(first.proteinG)}g · ${formatNumber(first.kcal)} kcal · ${perKcal.toLocaleString("en-US", {
+        maximumFractionDigits: 1,
+      })} g/100kcal · $ —`,
+    );
     expect(row.querySelectorAll(".catalog-sep")).toHaveLength(3);
-    expect(cell(row, "protein")).toHaveTextContent("P 82g");
-    expect(cell(row, "kcal")).toHaveTextContent("361 kcal");
-    expect(cell(row, "per-kcal")).toHaveTextContent("22.7 g/100kcal");
+    expect(cell(row, "protein")).toHaveTextContent(`P ${formatNumber(first.proteinG)}g`);
+    expect(cell(row, "kcal")).toHaveTextContent(`${formatNumber(first.kcal)} kcal`);
+    expect(cell(row, "per-kcal")).toHaveTextContent(/g\/100kcal/);
     expect(cell(row, "per-dollar")).toHaveTextContent("$ —");
     expect(within(row).getByRole("heading", { name: first.name })).toHaveAttribute("title", first.name);
     expect(row.querySelector(".market-cell-label")).toBeNull();
     expect(within(row).getByRole("button", { name: `Add ${first.name} to list` })).toHaveClass("catalog-add");
-    expect(screen.getByText("Catalog: Open Food Facts (ODbL)")).toBeInTheDocument();
+    expect(screen.getByText("Catalog and images: Open Food Facts (ODbL, CC BY-SA)")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /show more/i })).toBeInTheDocument();
   });
 
@@ -360,7 +366,7 @@ describe("Marketplace bundled catalog", () => {
     render(<Home />);
     openMarketplace();
 
-    fireEvent.change(screen.getByLabelText(/filter foods/i), { target: { value: "Isopure" } });
+    fireEvent.change(screen.getByLabelText(/filter foods/i), { target: { value: CATALOG[0].name } });
 
     expect(within(catalogList()).getAllByRole("listitem")).toHaveLength(1);
     expect(screen.getByRole("heading", { name: CATALOG[0].name })).toBeInTheDocument();
@@ -373,10 +379,9 @@ describe("Marketplace bundled catalog", () => {
     render(<Home />);
     openMarketplace();
 
-    const food = CATALOG.find((entry) => entry.name === "RXBAR Chocolate Sea Salt");
-    if (!food) throw new Error("Seed row missing");
+    const food = CATALOG[0];
 
-    fireEvent.change(screen.getByLabelText(/filter foods/i), { target: { value: "RXBAR Chocolate Sea Salt" } });
+    fireEvent.change(screen.getByLabelText(/filter foods/i), { target: { value: food.name } });
     fireEvent.click(screen.getByRole("button", { name: `Add ${food.name} to list` }));
 
     expect(screen.getByLabelText(/package weight \(g\)/i)).toHaveValue(food.packageGrams);
@@ -401,10 +406,9 @@ describe("Marketplace bundled catalog", () => {
     render(<Home />);
     openMarketplace();
 
-    const food = CATALOG.find((entry) => entry.name === "RXBAR Chocolate Sea Salt");
-    if (!food) throw new Error("Seed row missing");
+    const food = CATALOG[0];
 
-    fireEvent.change(screen.getByLabelText(/filter foods/i), { target: { value: "RXBAR Chocolate Sea Salt" } });
+    fireEvent.change(screen.getByLabelText(/filter foods/i), { target: { value: food.name } });
     fireEvent.click(catalogRow(food.name));
 
     expect(JSON.parse(localStorage.getItem(MARKET_KEY) ?? "[]")).toHaveLength(1);
@@ -427,17 +431,17 @@ describe("Marketplace bundled catalog", () => {
     render(<Home />);
     openMarketplace();
 
-    const food = CATALOG.find((entry) => entry.name === "RXBAR Chocolate Sea Salt");
-    if (!food) throw new Error("Seed row missing");
+    const food = CATALOG[0];
 
-    fireEvent.change(screen.getByLabelText(/filter foods/i), { target: { value: "RXBAR Chocolate Sea Salt" } });
+    fireEvent.change(screen.getByLabelText(/filter foods/i), { target: { value: food.name } });
     fireEvent.click(screen.getByRole("button", { name: `Add ${food.name} to list` }));
     fireEvent.change(screen.getByLabelText(/price paid/i), { target: { value: "2" } });
 
     const catalog = catalogList();
     const row = within(catalog).getByRole("heading", { name: food.name }).closest("li") as HTMLElement;
-    const perDollar = cell(row, "per-dollar");
-    expect(perDollar).toHaveTextContent("$ 6.01");
-    expect(perDollar).toHaveAttribute("title", "6.01 g per USD");
+    const perDollarCell = cell(row, "per-dollar");
+    const expected = (food.proteinG * (food.packageGrams ?? 0)) / 100 / 2;
+    expect(perDollarCell).toHaveTextContent(`$ ${formatNumber(expected)}`);
+    expect(perDollarCell).toHaveAttribute("title", `${formatNumber(expected)} g per USD`);
   });
 });

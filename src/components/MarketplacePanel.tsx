@@ -11,6 +11,7 @@ import {
   type CatalogFood,
 } from "../client/catalog";
 import { formatNumber } from "../client/format";
+import ProductThumb from "./ProductThumb";
 import {
   MARKET_LIMIT,
   loadMarket,
@@ -106,6 +107,7 @@ function CatalogRow({ food, price, onAdd }: CatalogRowProps) {
   return (
     <li className="market-item catalog-item" onClick={onAdd}>
       <div className="catalog-row">
+        <ProductThumb name={food.name} image={food.image} />
         <div className="catalog-main">
           <h3 className="market-name catalog-name" title={food.name}>
             {food.name}
@@ -200,8 +202,11 @@ function MarketRow({
     <li className={`market-item${expanded ? " is-open" : ""}`}>
       <div className="market-grid">
         <div className="market-ident">
-          <h3 className="market-name">{name}</h3>
-          {barcode && <span className="market-barcode">{barcode}</span>}
+          {mode === "saved" && <ProductThumb name={name} image={item.image} />}
+          <div className="market-ident-text">
+            <h3 className="market-name">{name}</h3>
+            {barcode && <span className="market-barcode">{barcode}</span>}
+          </div>
         </div>
 
         <Cell label="Price" column="price" value={priceLabel} />
@@ -500,7 +505,7 @@ export default function MarketplacePanel() {
     const match = catalogMatch(food);
     const key = marketKey(match.food);
     const existing = savedRef.current.find((item) => item.key === key);
-    const { items } = upsertMarketItem(savedRef.current, match);
+    const { items } = upsertMarketItem(savedRef.current, match, undefined, food.image);
     const packageWeightG =
       existing?.packageWeightG ??
       (food.packageGrams !== null && Number.isFinite(food.packageGrams) && food.packageGrams > 0
@@ -657,7 +662,7 @@ export default function MarketplacePanel() {
           </p>
         )}
 
-        <p className="market-credit">Catalog: Open Food Facts (ODbL)</p>
+        <p className="market-credit">Catalog and images: Open Food Facts (ODbL, CC BY-SA)</p>
       </section>
 
       {results.length > 0 && (

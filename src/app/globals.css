@@ -1190,6 +1190,31 @@ a {
   transition: border-color 160ms ease, box-shadow 160ms ease;
 }
 
+/* Shared 44px product photo, or its letter stand-in. */
+.product-thumb {
+  display: block;
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  object-fit: cover;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.product-thumb-fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--green-dark);
+  background: linear-gradient(150deg, var(--mint), #f7f4e9);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1;
+  user-select: none;
+}
+
 .market-item:hover {
   border-color: #c3bca8;
 }
@@ -1208,8 +1233,15 @@ a {
 }
 
 .market-ident {
-  display: grid;
+  display: flex;
+  gap: 10px;
+  align-items: center;
   grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.market-ident-text {
+  display: grid;
   gap: 2px;
   min-width: 0;
 }
@@ -1486,6 +1518,10 @@ a {
   }
 
   .market-ident {
+    gap: 10px;
+  }
+
+  .market-ident-text {
     gap: 1px;
   }
 
@@ -1580,9 +1616,9 @@ a {
 
 .catalog-row {
   display: flex;
-  gap: 8px;
+  gap: 10px;
   align-items: center;
-  min-height: 64px;
+  min-height: 70px;
   padding: 10px 12px;
 }
 
