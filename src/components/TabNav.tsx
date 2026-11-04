@@ -2,12 +2,13 @@
 
 import React, { useRef } from "react";
 
-export type AppTab = "scan" | "diary" | "progress";
+export type AppTab = "scan" | "diary" | "progress" | "marketplace";
 
 const TABS: { id: AppTab; label: string }[] = [
   { id: "scan", label: "Scan" },
   { id: "diary", label: "Diary" },
   { id: "progress", label: "Progress" },
+  { id: "marketplace", label: "Marketplace" },
 ];
 
 type Props = {
@@ -16,7 +17,12 @@ type Props = {
 };
 
 export default function TabNav({ active, onChange }: Props) {
-  const buttons = useRef<Record<AppTab, HTMLButtonElement | null>>({ scan: null, diary: null, progress: null });
+  const buttons = useRef<Record<AppTab, HTMLButtonElement | null>>({
+    scan: null,
+    diary: null,
+    progress: null,
+    marketplace: null,
+  });
 
   function moveTo(index: number) {
     const next = TABS[(index + TABS.length) % TABS.length];

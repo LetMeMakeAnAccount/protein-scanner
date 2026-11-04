@@ -28,7 +28,7 @@ Optional marketplace links are plain searches using the confirmed product name. 
 
 - Photos are analyzed in memory and never kept by the app.
 - It has no accounts or sign-in.
-- It does not provide live retailer prices. Marketplace/search links only open a search; they do not display retailer prices or offers, and no retailer scraping or retailer API is used.
+- It does not provide live retailer prices. The Open Prices endpoint returns historical community-contributed observations, not live retailer prices or offers. Marketplace/search links only open a search; they do not display retailer prices or offers, and no retailer scraping or retailer API is used.
 - It is not a diet recommendation or medical tool.
 
 ## Setup
@@ -90,6 +90,35 @@ Go to [dev.meta.ai](https://dev.meta.ai) and create an API key in the Meta devel
 - **Example:** labeled fixture content for judges or anyone without a camera. Judges without a camera can also use upload or manual entry instead.
 
 In all flows, confirm the item, price, currency/quantity basis, and nutrition values before calculating. Correcting inputs recalculates the results.
+
+## Price observations (Open Prices)
+
+`GET /api/prices?barcode=<4-24 digits>` returns up to five recent community-recorded price observations for a barcode from [Open Prices](https://prices.openfoodfacts.org/):
+
+```json
+{
+  "ok": true,
+  "data": {
+    "observations": [
+      {
+        "price": 2.49,
+        "currency": "EUR",
+        "date": "2025-01-14",
+        "store": "Carrefour",
+        "city": "Lyon",
+        "country": "France",
+        "pricePer": "UNIT",
+        "discounted": false,
+        "source": "open_prices"
+      }
+    ]
+  }
+}
+```
+
+Observations are returned newest first by observation date; `pricePer` is `UNIT`, `KG`, `L`, or `null`, and `date`, `store`, `city`, and `country` are `null` when the contributor did not record them. Responses are sent with `Cache-Control: no-store`. A missing, malformed, duplicated, or unknown query parameter returns 400 `invalid_input`; a failed or malformed upstream response returns 503 `unavailable`. The endpoint needs no API key.
+
+Open Prices data is contributed by the community and is made available under the [Open Database License (ODbL)](https://opendatacommons.org/licenses/odbl/1-0/). When displaying or reusing it, credit Open Prices and link to [prices.openfoodfacts.org](https://prices.openfoodfacts.org/). These are historical community observations, not live retailer prices or offers: they can be stale, incomplete, or tied to a different package size, and the app does not convert between currencies.
 
 ## Privacy
 

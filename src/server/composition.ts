@@ -4,6 +4,7 @@ import type { Food, Nutrition } from "../contracts/types";
 import { createImageHandlers } from "./http/image";
 import { MuseClient } from "./muse/client";
 import { createOffClient } from "./nutrition/off";
+import { createOpenPricesClient, type PriceObservation } from "./prices/openPrices";
 import { MemoryQuota } from "./quota/memory";
 
 type OffClient = {
@@ -11,6 +12,7 @@ type OffClient = {
   searchFood(query: string): Promise<Food[]>;
   nutritionForFood(id: string): Promise<Nutrition | null>;
 };
+type PriceClient = { observationsFor(barcode: string): Promise<PriceObservation[]> };
 
 function safeResponse(data: unknown, status = 200) {
   return Response.json(
@@ -22,6 +24,14 @@ function safeResponse(data: unknown, status = 200) {
 function lookupError(status: 400 | 503): Response {
   const code = status === 400 ? "invalid_input" : "unavailable";
   const message = status === 400 ? "Invalid input" : "Food lookup unavailable";
+  return Response.json(
+    { ok: false, error: { code, message } },
+    { status, headers: { "Cache-Control": "no-store" } },
+  );
+}
+function priceError(status: 400 | 503): Response {
+  const code = status === 400 ? "invalid_input" : "unavailable";
+  const message = status === 400 ? "Invalid input" : "Price observations unavailable";
   return Response.json(
     { ok: false, error: { code, message } },
     { status, headers: { "Cache-Control": "no-store" } },
@@ -92,6 +102,29 @@ export function createLookupHandlers(off: OffClient) {
         return safeResponse(await candidates(foods));
       } catch {
         return lookupError(503);
+      }
+    },
+  };
+}
+export function createPriceHandlers(openPrices: PriceClient) {
+  return {
+    async observations(request: Request): Promise<Response> {
+      const params = new URL(request.url).searchParams;
+      const barcodes = params.getAll("barcode");
+      if (barcodes.length !== 1) return priceError(400);
+      const [barcode] = barcodes;
+      if (
+        !/^\d{4,24}$/.test(barcode) ||
+        [...params.keys()].some((key) => key !== "barcode")
+      ) {
+        return priceError(400);
+      }
+      try {
+        const observations = await openPrices.observationsFor(barcode);
+        if (!Array.isArray(observations)) throw new Error("Invalid price result");
+        return safeResponse({ observations: observations.slice(0, 5) });
+      } catch {
+        return priceError(503);
       }
     },
   };
@@ -250,8 +283,10 @@ export function createProductionServices(env: NodeJS.ProcessEnv) {
   const { key, endpoint, model, cap, enabled } = modelSettings(env);
   const origins = allowedOrigins(env.ALLOWED_ORIGINS);
   const off = createOffClient();
+  const openPrices = createOpenPricesClient();
   return {
     lookup: () => createLookupHandlers(off),
+    prices: () => createPriceHandlers(openPrices),
     image: () => createImageHandlers({
       allowedOrigins: origins,
       resolveClientIdentity,

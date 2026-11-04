@@ -18,6 +18,7 @@ import { NO_GOALS, loadGoals, saveGoals, type DailyGoals } from "../client/goals
 import { todayISO } from "../client/history";
 import { prepareImageForUpload, UnsupportedPhotoError } from "../client/image";
 import DiaryPanel from "./DiaryPanel";
+import MarketplacePanel from "./MarketplacePanel";
 import ProgressPanel from "./ProgressPanel";
 import TabNav, { type AppTab } from "./TabNav";
 import ScannerPanel from "./ScannerPanel";
@@ -991,6 +992,12 @@ export default function ProteinScannerApp() {
       {tab === "progress" && (
         <div role="tabpanel" id="panel-progress" aria-labelledby="tab-progress" className="tab-panel">
           <ProgressPanel entries={entries} />
+        </div>
+      )}
+
+      {tab === "marketplace" && (
+        <div role="tabpanel" id="panel-marketplace" aria-labelledby="tab-marketplace" className="tab-panel">
+          <MarketplacePanel />
         </div>
       )}
 
