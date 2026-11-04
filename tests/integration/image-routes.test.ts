@@ -115,6 +115,9 @@ describe("transient image analysis", () => {
       ["model_missing", "ai_model_missing", "The configured AI model was not found"],
       ["rate_limited", "ai_rate_limited", "The AI provider is rate-limiting this key"],
       ["timeout", "ai_timeout", "The AI provider took too long"],
+      ["bad_request", "ai_bad_request", "The AI provider rejected the request parameters"],
+      ["provider_error", "ai_provider_error", "The AI provider failed to answer"],
+      ["truncated", "ai_truncated", "The AI reply was cut off before it finished"],
     ] as const;
     for (const [kind, code, message] of cases) {
       const fresh = createImageHandlers({ allowedOrigins: [origin], resolveClientIdentity: () => "peer", quota: new MemoryQuota({ enabled: true, globalCap: 5 }), muse: { analyze }, sanitize });
@@ -123,6 +126,25 @@ describe("transient image analysis", () => {
       expect(response.status).toBe(503);
       expect(response.headers.get("cache-control")).toBe("no-store");
       expect(await response.json()).toEqual({ ok: false, error: { code, message } });
+    }
+  });
+  it("returns specific safe codes for parameter, provider and truncation failures", async () => {
+    const cases = [
+      ["bad_request", "ai_bad_request", "The AI provider rejected the request parameters"],
+      ["provider_error", "ai_provider_error", "The AI provider failed to answer"],
+      ["truncated", "ai_truncated", "The AI reply was cut off before it finished"],
+    ] as const;
+    for (const [kind, code, message] of cases) {
+      const fresh = createImageHandlers({ allowedOrigins: [origin], resolveClientIdentity: () => "peer", quota: new MemoryQuota({ enabled: true, globalCap: 5 }), muse: { analyze }, sanitize });
+      analyze.mockRejectedValueOnce(new ModelRequestError(kind));
+      const response = await fresh.analyze(request());
+      expect(response.status).toBe(503);
+      expect(response.headers.get("cache-control")).toBe("no-store");
+      const body = JSON.stringify(await response.json());
+      expect(JSON.parse(body)).toEqual({ ok: false, error: { code, message } });
+      expect(body).not.toContain("Bearer");
+      expect(body).not.toContain("sk-");
+      expect(body).not.toContain("provider detail");
     }
   });
   it("hides provider text from generic failures", async () => {

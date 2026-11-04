@@ -113,6 +113,10 @@ describe("Muse client", () => {
     [403, "forbidden"],
     [404, "model_missing"],
     [429, "rate_limited"],
+    [400, "bad_request"],
+    [422, "bad_request"],
+    [500, "provider_error"],
+    [503, "provider_error"],
   ] as const)("classifies provider HTTP %i as %s without reading provider text", async (status, kind) => {
     const cancel = vi.fn();
     const stream = new ReadableStream<Uint8Array>({ pull() { throw new Error("provider body must not be read"); }, cancel });
@@ -125,7 +129,7 @@ describe("Muse client", () => {
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
   it("keeps other provider failures generic and never leaks provider text", async () => {
-    for (const status of [400, 418, 500, 503]) {
+    for (const status of [409, 418]) {
       const fetcher = vi.fn(async () => new Response("provider detail sk-live-secret", { status }));
       const error = await new MuseClient({ enabled: true, apiKey: "test-key", fetch: fetcher }).analyze({ bytes: new Uint8Array([1]), mediaType: "image/jpeg" }).catch((value: unknown) => value);
       expect(error).not.toBeInstanceOf(ModelRequestError);
@@ -148,11 +152,19 @@ describe("Muse client", () => {
     expect(body.messages[1]).toEqual({ role: "user", content: [{ type: "image_url", image_url: { url: "data:image/jpeg;base64,AQID" } }] });
     expect(body.response_format.json_schema.schema.additionalProperties).toBe(false);
   });
-  it("rejects truncation, invalid structured output, unsupported media and timeout without retries", async () => {
-    const fetcher = vi.fn(async () => reply(JSON.stringify(candidate), "length"));
-    const client = new MuseClient({ enabled: true, apiKey: "test-key", fetch: fetcher });
-    await expect(client.analyze({ bytes: new Uint8Array([1]), mediaType: "image/jpeg" })).rejects.toThrow("Model response invalid");
+  it("classifies max_completion_tokens truncation as truncated without provider text", async () => {
+    const fetcher = vi.fn(async () => new Response(JSON.stringify({ choices: [{ finish_reason: "length", message: { content: JSON.stringify(candidate) } }] }), { status: 200 }));
+    const error = await new MuseClient({ enabled: true, apiKey: "test-key", fetch: fetcher }).analyze({ bytes: new Uint8Array([1]), mediaType: "image/jpeg" }).catch((value: unknown) => value);
+    expect(error).toBeInstanceOf(ModelRequestError);
+    expect(error).toMatchObject({ kind: "truncated" });
+    expect((error as Error).message).not.toContain("test-key");
     expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+  it("rejects invalid structured output, unsupported media and timeout without retries", async () => {
+    const filtered = vi.fn(async () => reply(JSON.stringify(candidate), "content_filter"));
+    const client = new MuseClient({ enabled: true, apiKey: "test-key", fetch: filtered });
+    await expect(client.analyze({ bytes: new Uint8Array([1]), mediaType: "image/jpeg" })).rejects.toThrow("Model response invalid");
+    expect(filtered).toHaveBeenCalledTimes(1);
     await expect(client.analyze({ bytes: new Uint8Array([1]), mediaType: "image/gif" })).rejects.toThrow();
     await expect(new MuseClient({ enabled: true, apiKey: "test-key", timeoutMs: 5, fetch: () => new Promise(() => {}) }).analyze({ bytes: new Uint8Array([1]), mediaType: "image/jpeg" })).rejects.toMatchObject({ kind: "timeout" });
   });

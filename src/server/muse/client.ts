@@ -43,7 +43,7 @@ const schema = {
   required: ["item", "barcode", "price", "labelNutrition", "uncertainties"],
 };
 
-export type ModelFailureKind = "auth" | "billing" | "forbidden" | "model_missing" | "rate_limited" | "timeout";
+export type ModelFailureKind = "auth" | "billing" | "forbidden" | "model_missing" | "rate_limited" | "timeout" | "bad_request" | "provider_error" | "truncated";
 
 /** Typed provider failure. It never carries provider text, status detail or credentials. */
 export class ModelRequestError extends Error {
@@ -53,6 +53,15 @@ export class ModelRequestError extends Error {
 const providerFailures = new Map<number, ModelFailureKind>([
   [401, "auth"], [402, "billing"], [403, "forbidden"], [404, "model_missing"], [429, "rate_limited"],
 ]);
+
+/** Maps a provider HTTP status to a safe kind: explicit auth/billing codes first, then parameter vs server faults. */
+function failureForStatus(status: number): ModelFailureKind | null {
+  const known = providerFailures.get(status);
+  if (known) return known;
+  if (status === 400 || status === 422) return "bad_request";
+  if (status >= 500 && status <= 599) return "provider_error";
+  return null;
+}
 
 export class MuseClient {
   constructor(private readonly options: Options = {}) {}
@@ -96,7 +105,7 @@ export class MuseClient {
         }
         if (!response.ok || !response.body) {
           if (response.body) void response.body.cancel().catch(() => {});
-          const kind = providerFailures.get(response.status);
+          const kind = failureForStatus(response.status);
           if (kind) throw new ModelRequestError(kind);
           throw new Error("provider error");
         }
@@ -125,8 +134,13 @@ export class MuseClient {
         let parsed: unknown;
         try { parsed = JSON.parse(new TextDecoder().decode(bytes)); } catch { throw new Error("invalid response"); }
         const choices = (parsed as { choices?: unknown })?.choices;
-        if (!Array.isArray(choices) || choices.length !== 1 || choices[0]?.finish_reason !== "stop" || choices[0]?.message?.refusal != null || typeof choices[0]?.message?.content !== "string") throw new Error("invalid response");
-        return choices[0].message.content as string;
+        if (!Array.isArray(choices) || choices.length !== 1) throw new Error("invalid response");
+        const choice = choices[0] as { finish_reason?: unknown; message?: { refusal?: unknown; content?: unknown } } | null | undefined;
+        if (!choice || typeof choice !== "object") throw new Error("invalid response");
+        // Output hit max_completion_tokens (often hidden reasoning): a complete reply is not recoverable.
+        if (choice.finish_reason === "length") throw new ModelRequestError("truncated");
+        if (choice.finish_reason !== "stop" || choice.message?.refusal != null || typeof choice.message?.content !== "string") throw new Error("invalid response");
+        return choice.message.content;
       })();
       content = await Promise.race([request, aborted]);
     } catch (error) {

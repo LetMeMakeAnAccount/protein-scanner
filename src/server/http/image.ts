@@ -27,6 +27,9 @@ const providerFailures: Record<ModelFailureKind, { code: string; message: string
   model_missing: { code: "ai_model_missing", message: "The configured AI model was not found" },
   rate_limited: { code: "ai_rate_limited", message: "The AI provider is rate-limiting this key" },
   timeout: { code: "ai_timeout", message: "The AI provider took too long" },
+  bad_request: { code: "ai_bad_request", message: "The AI provider rejected the request parameters" },
+  provider_error: { code: "ai_provider_error", message: "The AI provider failed to answer" },
+  truncated: { code: "ai_truncated", message: "The AI reply was cut off before it finished" },
 };
 // Provider failures are reduced to fixed, safe messages; provider text and keys never escape.
 function classify(error: unknown): RouteError {
