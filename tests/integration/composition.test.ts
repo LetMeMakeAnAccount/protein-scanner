@@ -49,14 +49,30 @@ describe("transient production composition", () => {
       },
     });
   });
+  it("enables the model from the API key alone with a safe default cap", async () => {
+    const body = await createHealthHandlers({ NODE_ENV: "test", MUSE_API_KEY: "key" }).health().json() as { data: { model: { enabled: boolean; reasons: string[]; keyPresent: boolean; enabledFlag: boolean; cap: number; model: string; endpointHost: string } } };
+    expect(body.data.model).toEqual({ enabled: true, reasons: [], keyPresent: true, enabledFlag: true, cap: 200, model: "muse-spark-1.2", endpointHost: "api.meta.ai" });
+  });
+  it("treats an empty MODEL_ENABLED as on when a key exists and honors an explicit cap", async () => {
+    const body = await createHealthHandlers({ NODE_ENV: "test", MUSE_API_KEY: "key", MODEL_ENABLED: "", MODEL_MAX_REQUESTS: "5" }).health().json() as { data: { model: { enabled: boolean; reasons: string[]; keyPresent: boolean; enabledFlag: boolean; cap: number; model: string; endpointHost: string } } };
+    expect(body.data.model).toEqual({ enabled: true, reasons: [], keyPresent: true, enabledFlag: true, cap: 5, model: "muse-spark-1.2", endpointHost: "api.meta.ai" });
+  });
+  it("requires the key even when the flag and cap are valid", async () => {
+    const body = await createHealthHandlers({ NODE_ENV: "test", MODEL_ENABLED: "true", MODEL_MAX_REQUESTS: "3" }).health().json() as { data: { model: { enabled: boolean; reasons: string[]; keyPresent: boolean; cap: number } } };
+    expect(body.data.model).toMatchObject({ enabled: false, reasons: ["MUSE_API_KEY is missing"], keyPresent: false, cap: 3 });
+  });
   it.each([
-    [{ MODEL_ENABLED: "TRUE" }, "MODEL_ENABLED is not true"],
-    [{ MODEL_ENABLED: undefined }, "MODEL_ENABLED is not true"],
+    [{ MODEL_ENABLED: "false" }, "MODEL_ENABLED is false"],
+    [{ MODEL_ENABLED: "FALSE" }, "MODEL_ENABLED is false"],
+    [{ MODEL_ENABLED: "TRUE" }, "MODEL_ENABLED must be true, false, or unset"],
+    [{ MODEL_ENABLED: "garbage" }, "MODEL_ENABLED must be true, false, or unset"],
     [{ MUSE_API_KEY: "" }, "MUSE_API_KEY is missing"],
+    [{ MUSE_API_KEY: "   " }, "MUSE_API_KEY is missing"],
     [{ MUSE_API_KEY: undefined }, "MUSE_API_KEY is missing"],
-    [{ MODEL_MAX_REQUESTS: undefined }, "MODEL_MAX_REQUESTS missing/invalid or 0"],
-    [{ MODEL_MAX_REQUESTS: "0" }, "MODEL_MAX_REQUESTS missing/invalid or 0"],
-    [{ MODEL_MAX_REQUESTS: "not-a-number" }, "MODEL_MAX_REQUESTS missing/invalid or 0"],
+    [{ MODEL_MAX_REQUESTS: "0" }, "MODEL_MAX_REQUESTS must be a positive integer"],
+    [{ MODEL_MAX_REQUESTS: "not-a-number" }, "MODEL_MAX_REQUESTS must be a positive integer"],
+    [{ MODEL_MAX_REQUESTS: "-1" }, "MODEL_MAX_REQUESTS must be a positive integer"],
+    [{ MODEL_MAX_REQUESTS: "1000001" }, "MODEL_MAX_REQUESTS must be a positive integer"],
     [{ MUSE_API_URL: "http://api.meta.ai/v1/chat/completions" }, "MUSE_API_URL is invalid"],
     [{ MUSE_API_URL: "not a url" }, "MUSE_API_URL is invalid"],
     [{ MUSE_API_URL: "https://user:pass@api.meta.ai/v1" }, "MUSE_API_URL is invalid"],
@@ -66,6 +82,12 @@ describe("transient production composition", () => {
     const body = await createHealthHandlers(env).health().json() as { data: { model: { enabled: boolean; reasons: string[] } } };
     expect(body.data.model.enabled).toBe(false);
     expect(body.data.model.reasons).toEqual([reason]);
+  });
+  it("accepts the maximum allowed cap and rejects a larger one", async () => {
+    const atLimit = await createHealthHandlers({ NODE_ENV: "test", MUSE_API_KEY: "key", MODEL_MAX_REQUESTS: "1000000" }).health().json() as { data: { model: { enabled: boolean; cap: number } } };
+    expect(atLimit.data.model).toMatchObject({ enabled: true, cap: 1_000_000 });
+    const aboveLimit = await createHealthHandlers({ NODE_ENV: "test", MUSE_API_KEY: "key", MODEL_MAX_REQUESTS: "1000001" }).health().json() as { data: { model: { enabled: boolean; cap: number; reasons: string[] } } };
+    expect(aboveLimit.data.model).toMatchObject({ enabled: false, cap: 0, reasons: ["MODEL_MAX_REQUESTS must be a positive integer"] });
   });
   it("defaults an unset endpoint and model exactly as createProductionServices does", async () => {
     const body = await createHealthHandlers({ NODE_ENV: "test", MODEL_ENABLED: "true", MUSE_API_KEY: "key", MODEL_MAX_REQUESTS: "1", MUSE_API_URL: "" }).health().json() as { data: { model: { enabled: boolean; model: string; endpointHost: string } } };

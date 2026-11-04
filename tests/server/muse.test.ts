@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 import { parseMuseResponse } from "../../src/server/muse/parse";
-import { MuseClient } from "../../src/server/muse/client";
+import { ModelRequestError, MuseClient } from "../../src/server/muse/client";
 
 const candidate = { item: "Food", barcode: null, price: null, labelNutrition: null, uncertainties: [] };
 const reply = (content: string, finish_reason = "stop") => new Response(JSON.stringify({ choices: [{ finish_reason, message: { content } }] }), { status: 200 });
@@ -93,9 +93,46 @@ describe("Muse client", () => {
       return new Response(new ReadableStream<Uint8Array>({ pull() { return new Promise(() => {}); }, cancel }));
     });
     const client = new MuseClient({ enabled: true, apiKey: "test-key", fetch: fetcher, timeoutMs: 10 });
-    await expect(client.analyze({ bytes: new Uint8Array([1]), mediaType: "image/jpeg" })).rejects.toThrow(/^Model unavailable$/);
+    await expect(client.analyze({ bytes: new Uint8Array([1]), mediaType: "image/jpeg" })).rejects.toMatchObject({ kind: "timeout" });
     expect(upstreamSignal?.aborted).toBe(true);
     expect(cancel).toHaveBeenCalledOnce();
+  });
+  it("uses a 9 second provider budget by default", async () => {
+    const controller = new AbortController();
+    const spy = vi.spyOn(globalThis, "setTimeout");
+    try {
+      const result = new MuseClient({ enabled: true, apiKey: "test-key", fetch: () => new Promise<Response>(() => {}) }).analyze({ bytes: new Uint8Array([1]), mediaType: "image/jpeg" }, { signal: controller.signal, assertActive() {} });
+      expect(spy.mock.calls.some((call) => call[1] === 9000)).toBe(true);
+      controller.abort();
+      await expect(result).rejects.toThrow(/^Model unavailable$/);
+    } finally { spy.mockRestore(); }
+  });
+  it.each([
+    [401, "auth"],
+    [402, "billing"],
+    [403, "forbidden"],
+    [404, "model_missing"],
+    [429, "rate_limited"],
+  ] as const)("classifies provider HTTP %i as %s without reading provider text", async (status, kind) => {
+    const cancel = vi.fn();
+    const stream = new ReadableStream<Uint8Array>({ pull() { throw new Error("provider body must not be read"); }, cancel });
+    const fetcher = vi.fn(async () => new Response(stream, { status }));
+    const error = await new MuseClient({ enabled: true, apiKey: "test-key", fetch: fetcher }).analyze({ bytes: new Uint8Array([1]), mediaType: "image/jpeg" }).catch((value: unknown) => value);
+    expect(error).toBeInstanceOf(ModelRequestError);
+    expect(error).toMatchObject({ kind });
+    expect((error as Error).message).not.toContain("test-key");
+    expect(cancel).toHaveBeenCalledOnce();
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+  it("keeps other provider failures generic and never leaks provider text", async () => {
+    for (const status of [400, 418, 500, 503]) {
+      const fetcher = vi.fn(async () => new Response("provider detail sk-live-secret", { status }));
+      const error = await new MuseClient({ enabled: true, apiKey: "test-key", fetch: fetcher }).analyze({ bytes: new Uint8Array([1]), mediaType: "image/jpeg" }).catch((value: unknown) => value);
+      expect(error).not.toBeInstanceOf(ModelRequestError);
+      expect((error as Error).message).toBe("Model unavailable");
+      expect((error as Error).message).not.toContain("sk-live-secret");
+      expect(fetcher).toHaveBeenCalledTimes(1);
+    }
   });
   it("uses the documented structured-output protocol with an injected fetch", async () => {
     const fetcher = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => reply(JSON.stringify(candidate)));
@@ -117,7 +154,7 @@ describe("Muse client", () => {
     await expect(client.analyze({ bytes: new Uint8Array([1]), mediaType: "image/jpeg" })).rejects.toThrow("Model response invalid");
     expect(fetcher).toHaveBeenCalledTimes(1);
     await expect(client.analyze({ bytes: new Uint8Array([1]), mediaType: "image/gif" })).rejects.toThrow();
-    await expect(new MuseClient({ enabled: true, apiKey: "test-key", timeoutMs: 5, fetch: () => new Promise(() => {}) }).analyze({ bytes: new Uint8Array([1]), mediaType: "image/jpeg" })).rejects.toThrow("Model unavailable");
+    await expect(new MuseClient({ enabled: true, apiKey: "test-key", timeoutMs: 5, fetch: () => new Promise(() => {}) }).analyze({ bytes: new Uint8Array([1]), mediaType: "image/jpeg" })).rejects.toMatchObject({ kind: "timeout" });
   });
   it("rejects a provider refusal even if content looks valid", async () => {
     const fetcher = vi.fn(async () => new Response(JSON.stringify({ choices: [{ finish_reason: "stop", message: { content: JSON.stringify(candidate), refusal: "Cannot comply" } }] })));

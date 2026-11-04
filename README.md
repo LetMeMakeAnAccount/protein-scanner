@@ -55,7 +55,9 @@ Set the following in `.env.local` for local development:
 
 ```ini
 MUSE_API_KEY=<Meta Model API key>
-MODEL_ENABLED=true
+# Optional: blank means on when a key exists; set false to disable.
+MODEL_ENABLED=
+# Optional: in-memory request cap; defaults to 200.
 MODEL_MAX_REQUESTS=200
 # Optional: same-origin requests are accepted automatically.
 ALLOWED_ORIGINS=http://localhost:3000
@@ -64,7 +66,7 @@ ALLOWED_ORIGINS=http://localhost:3000
 Notes:
 
 - `MUSE_API_KEY` is developer-only and server-side. Never expose it to the client and never prefix it with `NEXT_PUBLIC_`.
-- `MODEL_ENABLED` must be `true` and `MUSE_API_KEY` must be set for model calls to be enabled. A valid `MODEL_MAX_REQUESTS` greater than 0 is also required by the server configuration.
+- Only `MUSE_API_KEY` is required. `MODEL_ENABLED` defaults to on when a key exists (set `false` to disable). `MODEL_MAX_REQUESTS` defaults to 200; raise/lower it to bound spend. `MODEL_ENABLED` accepts `true`, `false`, or unset; any other value disables model calls.
 - `ALLOWED_ORIGINS` is optional. A scan request is accepted when its `Origin` header exactly matches the request's own public origin, derived server-side from the request URL or from the proxy's `x-forwarded-host` / `host` headers (with `x-forwarded-proto`). Set `ALLOWED_ORIGINS` (comma-separated, exact origins) only to allow additional origins; it takes priority and is recommended when the deployment uses a custom domain or a proxy that rewrites host headers. Any other origin, or a request without an `Origin` header, returns 403. For local development the automatic origin is `http://localhost:3000`.
 - `MUSE_MODEL` and `MUSE_API_URL` are optional overrides. If unset, the server defaults to model `muse-spark-1.2` and endpoint `https://api.meta.ai/v1/chat/completions`.
 
@@ -78,7 +80,7 @@ Then open `http://localhost:3000`.
 
 ### Getting a Meta Model API key
 
-Go to [dev.meta.ai](https://dev.meta.ai) and create an API key in the Meta developer portal. Put that key in `MUSE_API_KEY` in `.env.local` (locally) or in the host's environment variables (deployed). Usage is subject to Meta's billing/credits terms; see the cost note below before enabling the model.
+Go to [dev.meta.ai](https://dev.meta.ai) and create an API key in the Meta developer portal. Put that key in `MUSE_API_KEY` in `.env.local` (locally) or in the host's environment variables (deployed). Adding the key turns model calls on by default with a 200-request in-memory cap, so review the cost note below before setting it on a deployed site. Usage is subject to Meta's billing/credits terms.
 
 ## Usage
 
@@ -96,9 +98,9 @@ In all flows, confirm the item, price, currency/quantity basis, and nutrition va
 
 ## Cost and safety controls
 
-- The model route stays off unless `MODEL_ENABLED=true` and `MUSE_API_KEY` is set (with a valid request cap configured). Manual entry, OFF lookup, and the example work without the model.
+- The model route is on when `MUSE_API_KEY` is set. `MODEL_ENABLED=false` is a hard off; `MODEL_MAX_REQUESTS` defaults to 200. Manual entry, OFF lookup, and the example work without the model.
 - `MODEL_MAX_REQUESTS` is an in-memory, per-process request cap. Its counter resets when the process restarts and is not coordinated across processes, serverless instances, or hosts. It is an abuse-reduction measure, **not a billing guarantee** and not a global spending cap; Meta's pricing and accounting determine actual charges.
-- Keep `MODEL_MAX_REQUESTS` conservative against the $150 Meta API credit budget, and review current pricing before any live use. To stop new model calls, set `MODEL_ENABLED` to a value other than `true` and restart/reconfigure the process; requests already in flight may finish.
+- Keep `MODEL_MAX_REQUESTS` conservative against the $150 Meta API credit budget, and review current pricing before any live use. To stop new model calls, set `MODEL_ENABLED=false` (or remove `MUSE_API_KEY`) and restart/reconfigure the process; requests already in flight may finish. A change to `MODEL_MAX_REQUESTS` also requires a restart: until the process restarts, the changed cap is not applied and model calls fail closed rather than silently resetting the existing counter.
 
 ## Troubleshooting 503
 
@@ -110,10 +112,10 @@ If scanning returns 503, open `/api/health` on the deployed site first. It repor
   "data": {
     "model": {
       "enabled": false,
-      "reasons": ["MODEL_ENABLED is not true", "MUSE_API_KEY is missing"],
+      "reasons": ["MUSE_API_KEY is missing"],
       "keyPresent": false,
-      "enabledFlag": false,
-      "cap": 0,
+      "enabledFlag": true,
+      "cap": 200,
       "model": "muse-spark-1.2",
       "endpointHost": "api.meta.ai"
     },
@@ -122,7 +124,7 @@ If scanning returns 503, open `/api/health` on the deployed site first. It repor
 }
 ```
 
-`reasons` lists each failing precondition: `MODEL_ENABLED` must be exactly `true`, `MUSE_API_KEY` must be present, `MODEL_MAX_REQUESTS` must be a positive integer, and `MUSE_API_URL` (if set) must be an `https:` URL. `keyPresent` only indicates whether a key exists; the key value, its length, and any prefix or hash are never returned. The endpoint is reduced to its hostname.
+`reasons` lists each failing precondition: `MUSE_API_KEY` must be present; `MODEL_ENABLED` must be `true`, `false`, or unset (unset/empty means on when a key exists, `false` is a hard off); `MODEL_MAX_REQUESTS` must be a positive integer (unset or empty defaults to 200); and `MUSE_API_URL` (if set) must be an `https:` URL. `keyPresent` only indicates whether a key exists; the key value, its length, and any prefix or hash are never returned. The endpoint is reduced to its hostname.
 
 Set or correct the environment variables in the hosting provider's dashboard (not in a committed file). Netlify applies environment-variable changes only on a new deploy, so redeploy after changing them and check `/api/health` again.
 
@@ -142,4 +144,4 @@ These run the automated test suite (Vitest), the TypeScript check, and the Next.
 
 Deployment has not yet been performed.
 
-When deploying to a host, set the same environment variables there (`MUSE_API_KEY`, `MODEL_ENABLED`, `MODEL_MAX_REQUESTS`, and optionally `MUSE_MODEL` / `MUSE_API_URL`). The deployed app accepts same-origin scan requests automatically, so `ALLOWED_ORIGINS` is optional; set it to a comma-separated list of exact origins only when you must allow origins other than the site's own public origin (recommended for custom domains or proxies that rewrite host headers). Camera use on the public URL requires HTTPS.
+When deploying to a host, only `MUSE_API_KEY` is required there. `MODEL_ENABLED` defaults to on when the key exists (set it to `false` to disable), and `MODEL_MAX_REQUESTS` defaults to 200. `MUSE_MODEL` / `MUSE_API_URL` remain optional. The deployed app accepts same-origin scan requests automatically, so `ALLOWED_ORIGINS` is optional; set it to a comma-separated list of exact origins only when you must allow origins other than the site's own public origin (recommended for custom domains or proxies that rewrite host headers). Camera use on the public URL requires HTTPS.

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import sharp from "sharp";
 import { createImageHandlers } from "../../src/server/http/image";
+import { ModelRequestError } from "../../src/server/muse/client";
 import { MemoryQuota } from "../../src/server/quota/memory";
 import type { ImageInput } from "../../src/contracts/types";
 import type { QuotaActionContext } from "../../src/server/quota/types";
@@ -105,6 +106,34 @@ describe("transient image analysis", () => {
     const noIdentity = createImageHandlers({ allowedOrigins: [origin], quota: new MemoryQuota({ enabled: true, globalCap: 5 }), muse: { analyze }, sanitize });
     expect((await noIdentity.analyze(request("frame", { "x-forwarded-for": "forged" }))).status).toBe(503);
     expect(analyze).not.toHaveBeenCalled();
+  });
+  it("maps provider failures to distinct safe codes with no-store", async () => {
+    const cases = [
+      ["auth", "ai_auth_failed", "The AI provider rejected the API key"],
+      ["billing", "ai_billing", "The AI provider reports no billing or credits"],
+      ["forbidden", "ai_forbidden", "The AI provider refused the request (region or key restriction)"],
+      ["model_missing", "ai_model_missing", "The configured AI model was not found"],
+      ["rate_limited", "ai_rate_limited", "The AI provider is rate-limiting this key"],
+      ["timeout", "ai_timeout", "The AI provider took too long"],
+    ] as const;
+    for (const [kind, code, message] of cases) {
+      const fresh = createImageHandlers({ allowedOrigins: [origin], resolveClientIdentity: () => "peer", quota: new MemoryQuota({ enabled: true, globalCap: 5 }), muse: { analyze }, sanitize });
+      analyze.mockRejectedValueOnce(new ModelRequestError(kind));
+      const response = await fresh.analyze(request());
+      expect(response.status).toBe(503);
+      expect(response.headers.get("cache-control")).toBe("no-store");
+      expect(await response.json()).toEqual({ ok: false, error: { code, message } });
+    }
+  });
+  it("hides provider text from generic failures", async () => {
+    analyze.mockRejectedValueOnce(new Error("401 invalid key sk-live-topsecret"));
+    const response = await handlers.analyze(request());
+    expect(response.status).toBe(503);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    const body = JSON.stringify(await response.json());
+    expect(body).toContain('"code":"unavailable"');
+    expect(body).not.toContain("sk-live-topsecret");
+    expect(body).not.toContain("invalid key");
   });
   it("propagates cancellation and never leaks provider errors", async () => {
     const controller = new AbortController();

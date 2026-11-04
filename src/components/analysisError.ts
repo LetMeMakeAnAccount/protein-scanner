@@ -15,6 +15,20 @@ export function describeAnalysisError(error: unknown): string {
         // A network failure also arrives as "unavailable"; keep its connection advice.
         if (/could not reach|did not respond/i.test(error.message)) return error.message;
         return "Photo analysis is unavailable right now (503). The app's AI service may not be configured on this deployment; the owner can check MODEL_ENABLED, MUSE_API_KEY and MODEL_MAX_REQUESTS.";
+      // The AI provider's own failures. Say what is wrong and what the visitor
+      // or the site owner can do, without status codes or provider internals.
+      case "ai_auth_failed":
+        return "The AI key was rejected. If you run this site, check MUSE_API_KEY in the deployment settings, then redeploy. You can still enter the values yourself.";
+      case "ai_billing":
+        return "The AI account has no credits or billing set up. If you run this site, add credits in the Meta developer portal. You can still enter values yourself.";
+      case "ai_forbidden":
+        return "The AI provider refused this request — usually a region or key restriction. Enter the values yourself, or try again later.";
+      case "ai_model_missing":
+        return "The configured AI model wasn't found. If you run this site, check MUSE_MODEL (default muse-spark-1.2).";
+      case "ai_rate_limited":
+        return "The AI is rate-limiting right now. Wait a moment and retry, or enter the values yourself.";
+      case "ai_timeout":
+        return "The AI took too long to respond. Retake a closer, brighter photo, or enter the values yourself.";
       case "invalid_input":
       case "unsupported_media_type":
         return "That photo couldn't be read — retake it with the camera or choose a JPEG/PNG.";

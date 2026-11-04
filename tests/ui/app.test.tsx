@@ -330,9 +330,15 @@ describe("Protein Scanner UI", () => {
     [403, "forbidden", "Origin not allowed", /not allowed to use photo analysis \(403\).*ALLOWED_ORIGINS/i],
     [429, "rate_limit", "Request rate limit reached", /too many photos were scanned just now \(429\)/i],
     [503, "unavailable", "Image analysis unavailable", /unavailable right now \(503\).*may not be configured/i],
+    [503, "ai_auth_failed", "AI request was not authorized", /AI key was rejected.*MUSE_API_KEY in the deployment settings/i],
+    [503, "ai_billing", "AI account has no billing", /no credits or billing set up.*Meta developer portal/i],
+    [503, "ai_forbidden", "AI provider rejected the request", /AI provider refused this request.*region or key restriction/i],
+    [503, "ai_model_missing", "AI model not found", /configured AI model wasn't found.*MUSE_MODEL/i],
+    [503, "ai_rate_limited", "AI is rate limiting requests", /AI is rate-limiting right now.*enter the values yourself/i],
+    [503, "ai_timeout", "AI request timed out", /AI took too long to respond.*closer, brighter photo/i],
     [400, "invalid_input", "Invalid input", /retake it with the camera or choose a JPEG\/PNG/i],
     [415, "unsupported_media_type", "Expected multipart image", /retake it with the camera or choose a JPEG\/PNG/i],
-  ])("shows an honest message for a %i analysis response", async (status, code, message, expected) => {
+  ])("shows an honest message for a %i analysis response (%s)", async (status, code, message, expected) => {
     const fetchMock = vi.fn(async () => jsonResponse({ ok: false, error: { code, message } }, status));
     vi.stubGlobal("fetch", fetchMock);
     Object.defineProperty(URL, "createObjectURL", { value: vi.fn(() => "blob:preview"), configurable: true });

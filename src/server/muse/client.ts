@@ -43,6 +43,17 @@ const schema = {
   required: ["item", "barcode", "price", "labelNutrition", "uncertainties"],
 };
 
+export type ModelFailureKind = "auth" | "billing" | "forbidden" | "model_missing" | "rate_limited" | "timeout";
+
+/** Typed provider failure. It never carries provider text, status detail or credentials. */
+export class ModelRequestError extends Error {
+  constructor(readonly kind: ModelFailureKind) { super("Model request failed"); this.name = "ModelRequestError"; }
+}
+
+const providerFailures = new Map<number, ModelFailureKind>([
+  [401, "auth"], [402, "billing"], [403, "forbidden"], [404, "model_missing"], [429, "rate_limited"],
+]);
+
 export class MuseClient {
   constructor(private readonly options: Options = {}) {}
 
@@ -54,13 +65,15 @@ export class MuseClient {
     if (!apiKey || !model || !image || image.mediaType !== "image/jpeg" || !(image.bytes instanceof Uint8Array) || image.bytes.length === 0 || image.bytes.length > 5 * 1024 * 1024) throw new Error("Model unavailable");
     try { if (new URL(endpoint).protocol !== "https:") throw new Error(); } catch { throw new Error("Model unavailable"); }
     const controller = new AbortController();
-    const externalAbort = () => controller.abort();
+    let callerAborted = false;
+    const externalAbort = () => { callerAborted = true; controller.abort(); };
     const aborted = new Promise<never>((_, reject) => {
       controller.signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
     });
     context?.signal.addEventListener("abort", externalAbort, { once: true });
-    if (context?.signal.aborted) controller.abort();
-    const timer = setTimeout(() => controller.abort(), this.options.timeoutMs ?? 15000);
+    if (context?.signal.aborted) externalAbort();
+    let timedOut = false;
+    const timer = setTimeout(() => { timedOut = true; controller.abort(); }, this.options.timeoutMs ?? 9000);
     let content: string;
     try {
       const request = (async () => {
@@ -81,7 +94,12 @@ export class MuseClient {
           if (response.body) void response.body.cancel().catch(() => {});
           throw new Error("aborted");
         }
-        if (!response.ok || !response.body) throw new Error("provider error");
+        if (!response.ok || !response.body) {
+          if (response.body) void response.body.cancel().catch(() => {});
+          const kind = providerFailures.get(response.status);
+          if (kind) throw new ModelRequestError(kind);
+          throw new Error("provider error");
+        }
         const reader = response.body.getReader();
         const cancelReader = () => { void reader.cancel().catch(() => {}); };
         controller.signal.addEventListener("abort", cancelReader, { once: true });
@@ -112,6 +130,9 @@ export class MuseClient {
       })();
       content = await Promise.race([request, aborted]);
     } catch (error) {
+      if (callerAborted) throw new Error("Model unavailable");
+      if (error instanceof ModelRequestError) throw error;
+      if (timedOut) throw new ModelRequestError("timeout");
       if (!controller.signal.aborted && error instanceof Error && error.message === "invalid response") throw new Error("Model response invalid");
       throw new Error("Model unavailable");
     } finally {

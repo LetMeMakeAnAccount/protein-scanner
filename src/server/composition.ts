@@ -49,29 +49,47 @@ function validEndpoint(value: string): boolean {
   try { const url = new URL(value); return url.protocol === "https:" && !url.username && !url.password && !url.hash; }
   catch { return false; }
 }
+const defaultEndpoint = "https://api.meta.ai/v1/chat/completions";
+const defaultModel = "muse-spark-1.2";
+const defaultRequestCap = 200;
+const maxRequestCap = 1_000_000;
+// An unset/empty MUSE_API_KEY is missing. Keys are trimmed so a stray space
+// cannot masquerade as a configured credential.
+function apiKey(value: string | undefined): string {
+  return (value ?? "").trim();
+}
+// MUSE_API_KEY is the primary switch: MODEL_ENABLED unset or empty defaults to
+// on whenever a key exists. "false" is the documented hard off; any other
+// non-empty value (including "TRUE") is invalid rather than guessed at.
+function enabledFlag(value: string | undefined): { enabled: boolean; reason?: string } {
+  const flag = (value ?? "").trim();
+  if (!flag || flag === "true") return { enabled: true };
+  if (flag.toLowerCase() === "false") return { enabled: false, reason: "MODEL_ENABLED is false" };
+  return { enabled: false, reason: "MODEL_ENABLED must be true, false, or unset" };
+}
 function requestCap(value: string | undefined): number {
-  if (!value || !/^\d+$/.test(value)) return 0;
-  const cap = Number(value);
-  return Number.isSafeInteger(cap) && cap <= 1_000_000 ? cap : 0;
+  const raw = (value ?? "").trim();
+  if (!raw) return defaultRequestCap;
+  if (!/^\d+$/.test(raw)) return 0;
+  const cap = Number(raw);
+  return Number.isSafeInteger(cap) && cap > 0 && cap <= maxRequestCap ? cap : 0;
 }
 function hostOf(endpoint: string): string {
   try { return new URL(endpoint).hostname; } catch { return ""; }
 }
-const defaultEndpoint = "https://api.meta.ai/v1/chat/completions";
-const defaultModel = "muse-spark-1.2";
 // Single source of truth for the model settings used by both production
 // services and health reporting, so the two cannot drift.
 function modelSettings(env: NodeJS.ProcessEnv) {
-  const key = env.MUSE_API_KEY ?? "", endpoint = env.MUSE_API_URL || defaultEndpoint, model = env.MUSE_MODEL || defaultModel;
+  const key = apiKey(env.MUSE_API_KEY), endpoint = env.MUSE_API_URL || defaultEndpoint, model = env.MUSE_MODEL || defaultModel;
   const cap = requestCap(env.MODEL_MAX_REQUESTS);
-  const enabledFlag = env.MODEL_ENABLED === "true";
+  const flag = enabledFlag(env.MODEL_ENABLED);
   const endpointValid = validEndpoint(endpoint);
   const reasons: string[] = [];
-  if (!enabledFlag) reasons.push("MODEL_ENABLED is not true");
+  if (flag.reason) reasons.push(flag.reason);
   if (!key) reasons.push("MUSE_API_KEY is missing");
-  if (cap <= 0) reasons.push("MODEL_MAX_REQUESTS missing/invalid or 0");
+  if (cap <= 0) reasons.push("MODEL_MAX_REQUESTS must be a positive integer");
   if (!endpointValid) reasons.push("MUSE_API_URL is invalid");
-  return { key, endpoint, model, cap, enabled: reasons.length === 0, enabledFlag, reasons, endpointHost: hostOf(endpoint) };
+  return { key, endpoint, model, cap, enabled: reasons.length === 0, enabledFlag: flag.enabled, reasons, endpointHost: hostOf(endpoint) };
 }
 // One singleton per process/module instance. Restarts and multiple instances
 // reset/separate accounting. A cap change requires restart, never a silent reset.

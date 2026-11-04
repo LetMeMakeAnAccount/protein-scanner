@@ -43,16 +43,13 @@ describe("GET /api/health", () => {
       data: {
         model: {
           enabled: false,
-          // MUSE_API_URL is unset, so the valid default endpoint is in effect
-          // and only the other three preconditions fail.
-          reasons: [
-            "MODEL_ENABLED is not true",
-            "MUSE_API_KEY is missing",
-            "MODEL_MAX_REQUESTS missing/invalid or 0",
-          ],
+          // MUSE_API_URL is unset, so the valid default endpoint is in effect.
+          // An unset MODEL_ENABLED is on by default and MODEL_MAX_REQUESTS
+          // defaults to 200, so only the missing key fails.
+          reasons: ["MUSE_API_KEY is missing"],
           keyPresent: false,
-          enabledFlag: false,
-          cap: 0,
+          enabledFlag: true,
+          cap: 200,
           model: "muse-spark-1.2",
           endpointHost: "api.meta.ai",
         },
@@ -62,10 +59,8 @@ describe("GET /api/health", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it("reports enabled and never exposes the configured secret", async () => {
-    process.env.MODEL_ENABLED = "true";
+  it("enables the model from the API key alone and never exposes the configured secret", async () => {
     process.env.MUSE_API_KEY = "sk-live-route-secret-123";
-    process.env.MODEL_MAX_REQUESTS = "4";
     const response = await GET();
     expect(response.status).toBe(200);
     expect(response.headers.get("Cache-Control")).toBe("no-store");
@@ -76,7 +71,17 @@ describe("GET /api/health", () => {
     expect(body.data.model.enabled).toBe(true);
     expect(body.data.model.reasons).toEqual([]);
     expect(body.data.model.keyPresent).toBe(true);
-    expect(body.data.model.cap).toBe(4);
+    expect(body.data.model.enabledFlag).toBe(true);
+    expect(body.data.model.cap).toBe(200);
+  });
+
+  it("keeps an explicit MODEL_ENABLED=false as a hard off", async () => {
+    process.env.MUSE_API_KEY = "sk-live-route-secret-123";
+    process.env.MODEL_ENABLED = "false";
+    const body = (await (await GET()).json()) as HealthBody;
+    expect(body.data.model.enabled).toBe(false);
+    expect(body.data.model.enabledFlag).toBe(false);
+    expect(body.data.model.reasons).toEqual(["MODEL_ENABLED is false"]);
   });
 
   it("reports additional origins as configured without disclosing them", async () => {

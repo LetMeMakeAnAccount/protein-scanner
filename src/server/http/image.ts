@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { parseCandidate } from "../../contracts/schemas";
 import type { Candidate, ImageInput } from "../../contracts/types";
 import { MAX_IMAGE_BYTES, sanitizeImage } from "../image";
+import { ModelRequestError, type ModelFailureKind } from "../muse/client";
 import { withQuotaLease } from "../quota/memory";
 import type { QuotaActionContext, QuotaStore } from "../quota/types";
 
@@ -19,8 +20,25 @@ class RouteError extends Error { constructor(readonly status: number, readonly c
 const invalid = () => new RouteError(400, "invalid_input", "Invalid input");
 const unavailable = () => new RouteError(503, "unavailable", "Image analysis unavailable; retry or use manual entry");
 const cancelled = () => new RouteError(400, "cancelled", "Request cancelled");
+const providerFailures: Record<ModelFailureKind, { code: string; message: string }> = {
+  auth: { code: "ai_auth_failed", message: "The AI provider rejected the API key" },
+  billing: { code: "ai_billing", message: "The AI provider reports no billing or credits" },
+  forbidden: { code: "ai_forbidden", message: "The AI provider refused the request (region or key restriction)" },
+  model_missing: { code: "ai_model_missing", message: "The configured AI model was not found" },
+  rate_limited: { code: "ai_rate_limited", message: "The AI provider is rate-limiting this key" },
+  timeout: { code: "ai_timeout", message: "The AI provider took too long" },
+};
+// Provider failures are reduced to fixed, safe messages; provider text and keys never escape.
+function classify(error: unknown): RouteError {
+  if (error instanceof RouteError) return error;
+  if (error instanceof ModelRequestError) {
+    const failure = providerFailures[error.kind];
+    if (failure) return new RouteError(503, failure.code, failure.message);
+  }
+  return unavailable();
+}
 function errorResponse(error: unknown): Response {
-  const failure = error instanceof RouteError ? error : unavailable();
+  const failure = classify(error);
   return Response.json({ ok: false, error: { code: failure.code, message: failure.message } }, { status: failure.status, headers: { "Cache-Control": "no-store" } });
 }
 export function imageUnavailableResponse(): Response { return errorResponse(unavailable()); }
