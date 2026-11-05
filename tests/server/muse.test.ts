@@ -282,6 +282,7 @@ describe("Muse client", () => {
     const instruction = body.messages[0].content;
     expect(instruction).toContain("pick the single most prominent complete product");
     expect(instruction).toContain("never reinterpret ounces or fluid ounces as grams");
+    expect(instruction).toContain("6 x 500 mL");
     expect(body.response_format.json_schema.schema.required).toContain("packageSize");
     expect(body.response_format.json_schema.schema.properties.packageSize.anyOf[0].properties.unit.enum).toEqual(["g", "kg", "oz", "lb", "ml", "fl_oz"]);
   });
