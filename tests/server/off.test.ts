@@ -20,16 +20,25 @@ describe("Open Food Facts mapping", () => {
       const client = createOffClient({ fetch: async () => response({ status: 1, product: { ...product, nutriments } }) });
       expect(await client.nutritionForFood("12345678")).toMatchObject({ proteinG: null, energyKcal: null });
     }
-    const client = createOffClient({ fetch: async () => response({ status: 1, product: { ...product, product_quantity_unit: "ml" } }) });
-    expect(await client.nutritionForFood("12345678")).toBeNull();
-    const ambiguous = createOffClient({ fetch: async () => response({ status: 1, product: { ...product, product_quantity_unit: undefined, nutrition_data_per: "100g" } }) });
-    expect(await ambiguous.nutritionForFood("12345678")).toBeNull();
+    const liquid = createOffClient({ fetch: async () => response({ status: 1, product: { ...product, product_quantity_unit: "ml" } }) });
+    expect(await liquid.nutritionForFood("12345678")).toBeNull();
+    const undeclared = createOffClient({ fetch: async () => response({ status: 1, product: { ...product, product_quantity_unit: undefined } }) });
+    expect(await undeclared.nutritionForFood("12345678")).toBeNull();
+    // A declared per-100 g basis is enough even without a package weight.
+    const declared = createOffClient({ fetch: async () => response({ status: 1, product: { ...product, product_quantity_unit: undefined, nutrition_data_per: "100g" } }) });
+    expect(await declared.nutritionForFood("12345678")).toMatchObject({ proteinG: 10, energyKcal: 100, basis: { amount: 100, unit: "g" } });
   });
   it("searches without selecting a match, and exposes honest no-match", async () => {
-    const fetcher = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => response({ products: [product, { ...product, code: "87654321" }] }));
-    const foods = await createOffClient({ fetch: fetcher }).searchFood("protein & food");
+    const modern = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
+      response({ hits: [product, { ...product, code: "87654321" }] }));
+    const foods = await createOffClient({ fetch: modern }).searchFood("protein & food");
     expect(foods).toHaveLength(2);
-    expect(String(fetcher.mock.calls[0][0])).toContain("search_terms=protein+%26+food");
+    expect(String(modern.mock.calls[0][0])).toContain("search.openfoodfacts.org/search");
+    expect(String(modern.mock.calls[0][0])).toContain("q=protein+%26+food");
+    const legacy = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
+      response({ products: [product] }));
+    expect(await createOffClient({ fetch: legacy }).searchFood("protein")).toHaveLength(1);
+    expect(String(legacy.mock.calls[1][0])).toContain("search_terms=protein");
     const missing = createOffClient({ fetch: async () => response({ status: 0 }) });
     expect(await missing.lookupBarcode("12345678")).toEqual([]);
     expect(await missing.nutritionForFood("12345678")).toBeNull();

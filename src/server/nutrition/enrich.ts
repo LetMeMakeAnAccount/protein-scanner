@@ -19,6 +19,7 @@ type ScoredMatch = Match & { score: number };
 
 const DEFAULT_TIMEOUT_MS = 2500;
 const MAX_SEARCH_RESULTS = 8;
+const MAX_BARCODE_FALLBACK_RESULTS = 5;
 const MATCH_THRESHOLD = 0.5;
 const BARCODE = /^\d{4,24}$/;
 const OFF_ORIGIN = "https://world.openfoodfacts.org";
@@ -116,6 +117,21 @@ function gramsFor(basis: Basis): number | null {
   if (!Number.isFinite(basis.amount) || basis.amount <= 0) return null;
   if (basis.unit === "g") return basis.amount;
   if (basis.unit === "kg") return basis.amount * 1000;
+  return null;
+}
+
+// The barcode path keeps its original fallback: first result with nutrition.
+async function firstWithNutrition(
+  foods: Food[],
+  deps: EnrichDependencies,
+): Promise<Match | null> {
+  if (!Array.isArray(foods)) return null;
+  for (const food of foods.slice(0, MAX_BARCODE_FALLBACK_RESULTS)) {
+    const id = identifier(food);
+    if (id === null) continue;
+    const nutrition = await deps.nutritionForFood(id);
+    if (nutrition !== null) return { food, nutrition };
+  }
   return null;
 }
 
@@ -223,21 +239,10 @@ async function resolve(
 
     // A barcode that resolves to no usable nutrition still leaves the printed
     // name as a useful search term; try it exactly once.
-    const reference = candidate.item?.trim() || first?.name?.trim() || "";
-    const query = searchQuery(reference);
+    const query = candidate.item?.trim() || first?.name?.trim() || "";
     if (query) {
-      const match = await bestNameMatch(
-        await deps.searchFood(query),
-        reference,
-        deps,
-      );
-      if (match) {
-        return withMatch(
-          candidate,
-          match,
-          match.score >= MATCH_THRESHOLD ? undefined : NAME_MATCH_NOTE,
-        );
-      }
+      const match = await firstWithNutrition(await deps.searchFood(query), deps);
+      if (match) return withMatch(candidate, match);
     }
     return candidate;
   }

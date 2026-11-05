@@ -49,9 +49,12 @@ function mapNutrition(value: unknown): Nutrition | null {
   const product = record(value);
   const food = mapFood(value);
   if (!product || !food) return null;
-  // OFF's `_100g` keys do not, on their own, establish a mass basis for a liquid.
+  // `_100g` keys are a mass basis when the label declares per-100 g data. Without
+  // either that declaration or a mass package unit, the values could describe a
+  // liquid or a serving, so they cannot be used as grams.
   const unit = product.product_quantity_unit;
-  if (unit !== "g" && unit !== "kg") return null;
+  const declaredPer100g = product.nutrition_data_per === "100g";
+  if (unit !== "g" && unit !== "kg" && !declaredPer100g) return null;
   const nutriments = record(product.nutriments) ?? {};
   const proteinG = nutriments.proteins_unit === undefined || nutriments.proteins_unit === "g" ? number(nutriments.proteins_100g) : null;
   const energyKcal = nutriments["energy-kcal_unit"] === undefined || nutriments["energy-kcal_unit"] === "kcal" ? number(nutriments["energy-kcal_100g"]) : null;
@@ -109,10 +112,31 @@ export function createOffClient(options: Options = {}) {
     },
     async searchFood(query: string): Promise<Food[]> {
       if (typeof query !== "string" || !query.trim() || query.length > 200) throw new Error("Invalid search");
-      const params = new URLSearchParams({ search_terms: query.trim(), search_simple: "1", action: "process", json: "1", page_size: "20" });
-      const data = await get(`${origin}/cgi/search.pl?${params}`);
-      if (!Array.isArray(data.products)) throw new Error("Food lookup unavailable");
-      return data.products.slice(0, 20).map(mapFood).filter((food): food is Food => food !== null);
+      // The legacy cgi/search.pl endpoint is rate-limited to 503s; Search-a-licious
+      // is the supported full-text service. Fall back to the legacy endpoint only
+      // if the modern one is unavailable.
+      const modern = new URLSearchParams({
+        q: query.trim(),
+        page_size: "20",
+        fields: "code,product_name,brands,quantity",
+      });
+      let products: unknown[] | null = null;
+      try {
+        const data = await get(`https://search.openfoodfacts.org/search?${modern}`);
+        if (Array.isArray(data.hits)) products = data.hits;
+      } catch {
+        // fall through to the legacy endpoint
+      }
+      if (products === null) {
+        const legacy = new URLSearchParams({ search_terms: query.trim(), search_simple: "1", action: "process", json: "1", page_size: "20" });
+        const data = await get(`${origin}/cgi/search.pl?${legacy}`);
+        if (!Array.isArray(data.products)) throw new Error("Food lookup unavailable");
+        products = data.products;
+      }
+      return products
+        .slice(0, 20)
+        .map((product) => mapFood(product))
+        .filter((food): food is Food => food !== null);
     },
     async nutritionForFood(id: string): Promise<Nutrition | null> {
       const product = await productFor(id);
