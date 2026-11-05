@@ -20,7 +20,7 @@ describe("OFF lookup routes", () => {
       expect(lookup[0].food.source).toEqual(source);
       expect(lookup[0].nutrition).toEqual(nutrition);
       expect(search).toEqual(lookup);
-      expect(fetch).toHaveBeenCalledTimes(4);
+      expect(fetch).toHaveBeenCalledTimes(5);
     } finally { vi.unstubAllGlobals(); }
   });
   it("wires both Next GET routes to the configured OFF handler", async () => {
