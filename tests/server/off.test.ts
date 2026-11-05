@@ -21,7 +21,7 @@ describe("Open Food Facts mapping", () => {
       expect(await client.nutritionForFood("12345678")).toMatchObject({ proteinG: null, energyKcal: null });
     }
     const liquid = createOffClient({ fetch: async () => response({ status: 1, product: { ...product, product_quantity_unit: "ml" } }) });
-    expect(await liquid.nutritionForFood("12345678")).toBeNull();
+    expect(await liquid.nutritionForFood("12345678")).toMatchObject({ proteinG: 10, basis: { amount: 100, unit: "ml" } });
     const undeclared = createOffClient({ fetch: async () => response({ status: 1, product: { ...product, product_quantity_unit: undefined } }) });
     expect(await undeclared.nutritionForFood("12345678")).toBeNull();
     // A declared per-100 g basis is enough even without a package weight.

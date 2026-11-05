@@ -49,9 +49,10 @@ export const nutritionSchema = z.object({
 }).strict();
 
 export const packageSizeSchema = z.object({
-  // Raw model reading is kept even when implausible; only packageSizeGrams is screened.
+  // Raw model reading is kept even when implausible; only derived values are screened.
   amount: z.number(),
   unit: z.enum(["g", "kg", "oz", "lb", "ml", "fl_oz"]),
+  count: z.number().int().min(1).max(100).optional(),
 }).strict();
 
 export const priceSchema = z.object({
@@ -77,6 +78,7 @@ export const candidateSchema = z.object({
   ).nullable(),
   packageSize: packageSizeSchema.nullable().optional(),
   packageSizeGrams: z.number().finite().positive().max(100_000).nullable().optional(),
+  packageSizeMl: z.number().finite().positive().max(1_000_000).nullable().optional(),
   uncertainties: z.array(text).max(100),
 }).strict();
 

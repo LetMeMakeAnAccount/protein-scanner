@@ -403,6 +403,7 @@ describe("name search matching", () => {
     expect(result.labelNutrition).not.toBeNull();
     expect(result.uncertainties).toEqual([
       'Nutrition filled from Open Food Facts for "Chobani Snacks" - check it.',
+      "Nutrition matched by name from Open Food Facts - check it.",
     ]);
   });
 });

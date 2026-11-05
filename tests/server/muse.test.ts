@@ -100,15 +100,22 @@ describe("Muse package size", () => {
     expect(parsed.packageSizeGrams).toBe(grams);
     expect(parsed.uncertainties).toEqual([]);
   });
-  it.each(["ml", "fl_oz"])("keeps %s as volume and asks for a drained weight instead of guessing", (unit) => {
+  it.each(["ml", "fl_oz"])("converts %s volume to millilitres without inventing grams", (unit) => {
     const parsed = parseMuseResponse(packaged(591, unit));
     expect(parsed.packageSize).toEqual({ amount: 591, unit });
     expect(parsed.packageSizeGrams).toBeNull();
-    expect(parsed.uncertainties).toEqual([volumeUncertainty]);
+    expect(parsed.packageSizeMl).toBeCloseTo(unit === "ml" ? 591 : 591 * 29.5735295625, 2);
+    expect(parsed.uncertainties).toEqual([]);
   });
-  it.each([0, -5, 100000.01])("does not add volume guidance for an implausible volume %s", (amount) => {
+  it("multiplies a multipack count into the derived volume", () => {
+    const parsed = parseMuseResponse({ ...candidate, packageSize: { amount: 500, unit: "ml", count: 6 } });
+    expect(parsed.packageSizeMl).toBe(3000);
+    expect(parsed.packageSizeGrams).toBeNull();
+  });
+  it.each([0, -5, 100000.01])("does not derive a volume for an implausible amount %s", (amount) => {
     const parsed = parseMuseResponse(packaged(amount, "ml"));
     expect(parsed.packageSizeGrams).toBeNull();
+    expect(parsed.packageSizeMl).toBeNull();
     expect(parsed.uncertainties).toEqual([]);
   });
   it.each([0, -5, 100000.01, 1e9, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])(
@@ -274,8 +281,7 @@ describe("Muse client", () => {
     const body = JSON.parse(String((fetcher.mock.calls[0] as unknown as [string, RequestInit])[1].body));
     const instruction = body.messages[0].content;
     expect(instruction).toContain("pick the single most prominent complete product");
-    expect(instruction).toContain("never reinterpret ounces as grams");
-    expect(instruction).toContain("return the total with unit g");
+    expect(instruction).toContain("never reinterpret ounces or fluid ounces as grams");
     expect(body.response_format.json_schema.schema.required).toContain("packageSize");
     expect(body.response_format.json_schema.schema.properties.packageSize.anyOf[0].properties.unit.enum).toEqual(["g", "kg", "oz", "lb", "ml", "fl_oz"]);
   });

@@ -18,9 +18,9 @@ const extractionInstruction = [
   "item: when any brand, product name or supplement name is visible, item MUST contain the most specific readable brand and product name; null only when no identifying words are visible at all.",
   "price: if any price digits are visible, always return price.amount and price.currency with source 'label'. Infer USD from '$' and EUR from '€' when no ISO code is printed. Set basis to the printed basis of the price: { amount: 1, unit: 'package' } when the price is for the printed package (for example a 32 oz tub), { amount: 100, unit: 'g' } for a per 100 g badge, or { amount: 1, unit: 'serving' } for a per-serving badge. Use only the schema basis units (g, kg, ml, l, serving, package); for a per lb badge, keep the visible per-pound figure in uncertainties. Never null a visible price because the linkage or basis is uncertain; note the doubt in uncertainties instead.",
   "labelNutrition: if a Nutrition Facts or Supplement Facts panel shows protein and/or calories, always return labelNutrition with the basis printed (per 100 g, per serving, per container) and copy the visible text into source.visibleText. Null only when no protein and no calorie number is visible.",
-  "packageSize: always fill when any net weight or volume is printed (oz, lb, g, kg, ml, fl oz); keep the unit as printed, using fl_oz for fl oz. Null only when absent.",
+  "packageSize: always fill when any net weight or volume is printed (oz, lb, g, kg, ml, fl oz); keep the unit as printed, using fl_oz for fl oz. For multipacks put the units per pack in count and the size of one unit in amount, so '6 x 500 mL' is { amount: 500, unit: 'ml', count: 6 } and '4 x 125 g' is { amount: 125, unit: 'g', count: 4 }. Null only when absent.",
   "Nutrition may only transcribe numbers visible in the label; never recall or infer nutrition from memory or from the product name.",
-  "Do not infer mass, volume, serving or package mappings beyond the net quantity printed on the package. Read the net quantity printed on the package and return it as packageSize. Convert words like 'NET WT 32 OZ' faithfully; never reinterpret ounces as grams. If a value is not printed but is implied by the package (e.g. '4 x 125 g'), return the total with unit g.",
+  "Do not infer mass, volume, serving or package mappings beyond the net quantity printed on the package. Read the net quantity printed on the package and return it as packageSize. Convert words like 'NET WT 32 OZ' faithfully; never reinterpret ounces or fluid ounces as grams.",
   "When several products or labels are visible, pick the single most prominent complete product and return only that one; do not return lists. A candidate is not confirmed.",
 ].join(" ");
 const basis = {
@@ -30,7 +30,11 @@ const basis = {
 };
 const packageSize = {
   type: "object", additionalProperties: false,
-  properties: { amount: { type: "number" }, unit: { type: "string", enum: ["g", "kg", "oz", "lb", "ml", "fl_oz"] } },
+  properties: {
+    amount: { type: "number" },
+    unit: { type: "string", enum: ["g", "kg", "oz", "lb", "ml", "fl_oz"] },
+    count: { type: "number" },
+  },
   required: ["amount", "unit"],
 };
 const source = {

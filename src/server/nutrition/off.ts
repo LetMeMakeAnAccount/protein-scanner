@@ -49,16 +49,21 @@ function mapNutrition(value: unknown): Nutrition | null {
   const product = record(value);
   const food = mapFood(value);
   if (!product || !food) return null;
-  // `_100g` keys are a mass basis when the label declares per-100 g data. Without
-  // either that declaration or a mass package unit, the values could describe a
-  // liquid or a serving, so they cannot be used as grams.
   const unit = product.product_quantity_unit;
-  const declaredPer100g = product.nutrition_data_per === "100g";
-  if (unit !== "g" && unit !== "kg" && !declaredPer100g) return null;
+  const declared = product.nutrition_data_per;
   const nutriments = record(product.nutriments) ?? {};
+  // The declaration wins; otherwise the package's own unit decides. Without
+  // either, the values could describe an unknown serving, so they are unusable.
+  const basis: Basis | null =
+    declared === "100g" || ((unit === "g" || unit === "kg") && declared !== "100ml")
+      ? { amount: 100, unit: "g" }
+      : declared === "100ml" || unit === "ml" || unit === "l"
+        ? { amount: 100, unit: "ml" }
+        : null;
+  if (basis === null) return null;
   const proteinG = nutriments.proteins_unit === undefined || nutriments.proteins_unit === "g" ? number(nutriments.proteins_100g) : null;
   const energyKcal = nutriments["energy-kcal_unit"] === undefined || nutriments["energy-kcal_unit"] === "kcal" ? number(nutriments["energy-kcal_100g"]) : null;
-  return { proteinG, energyKcal, basis: { amount: 100, unit: "g" }, source: food.source };
+  return { proteinG, energyKcal, basis, source: food.source };
 }
 
 export function createOffClient(options: Options = {}) {

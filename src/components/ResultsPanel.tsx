@@ -124,8 +124,8 @@ export default function ResultsPanel({
 
       {!nutritionFromOff && <p className="check-line">Check the label — values can be wrong.</p>}
 
-      <section className="edit-values" aria-labelledby="edit-values-heading">
-        <h3 id="edit-values-heading">Edit values</h3>
+      <details className="edit-values">
+        <summary id="edit-values-heading">Edit values</summary>
         <form onSubmit={(event) => event.preventDefault()}>
           <div className="field">
             <label htmlFor="result-item-name">Item name</label>
@@ -282,7 +282,7 @@ export default function ResultsPanel({
             )}
           </fieldset>
         </form>
-      </section>
+      </details>
 
       <section className="diary-add" aria-labelledby="result-diary-heading">
         <h3 id="result-diary-heading">Add to today's diary</h3>

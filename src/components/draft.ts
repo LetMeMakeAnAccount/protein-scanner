@@ -79,6 +79,17 @@ function knownPackageGrams(candidate: Candidate): number | null {
   return gramsFromPackageSize(candidate);
 }
 
+function knownPackageMl(candidate: Candidate): number | null {
+  const ml = candidate.packageSizeMl;
+  if (typeof ml === "number" && Number.isFinite(ml) && ml > 0) return ml;
+  const size = candidate.packageSize;
+  if (!size) return null;
+  const factor = size.unit === "ml" ? 1 : size.unit === "fl_oz" ? 29.5735295625 : null;
+  if (factor === null) return null;
+  const amount = size.amount * (size.count ?? 1) * factor;
+  return Number.isFinite(amount) && amount > 0 && amount <= 1_000_000 ? Math.round(amount * 100) / 100 : null;
+}
+
 export function candidateToDraft(candidate: Candidate, previewUrl: string | null): Draft {
   const draft = emptyDraft();
   draft.name = candidate.item ?? "";
@@ -89,9 +100,14 @@ export function candidateToDraft(candidate: Candidate, previewUrl: string | null
   // usable weight starts at 100 g and marks it as an estimate so protein per
   // dollar is still useful.
   const grams = knownPackageGrams(candidate);
+  const millilitres = grams === null ? knownPackageMl(candidate) : null;
   if (grams !== null) {
     draft.packageAmount = String(grams);
     draft.packageUnit = "g";
+    draft.packageEstimated = false;
+  } else if (millilitres !== null) {
+    draft.packageAmount = String(millilitres);
+    draft.packageUnit = "ml";
     draft.packageEstimated = false;
   } else {
     draft.packageAmount = "100";

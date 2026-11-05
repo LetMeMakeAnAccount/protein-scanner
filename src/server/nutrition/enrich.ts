@@ -113,6 +113,13 @@ function packageSizeFor(basis: Basis): PackageSize | null {
   }
 }
 
+function millilitresFor(basis: Basis): number | null {
+  if (!Number.isFinite(basis.amount) || basis.amount <= 0) return null;
+  if (basis.unit === "ml") return basis.amount;
+  if (basis.unit === "l") return basis.amount * 1000;
+  return null;
+}
+
 function gramsFor(basis: Basis): number | null {
   if (!Number.isFinite(basis.amount) || basis.amount <= 0) return null;
   if (basis.unit === "g") return basis.amount;
@@ -148,11 +155,15 @@ async function bestNameMatch(
   for (const food of foods.slice(0, MAX_SEARCH_RESULTS)) {
     if (!food || typeof food.name !== "string") continue;
     let shared = 0;
+    let extra = 0;
     for (const token of distinctiveTokens(food.name)) {
       if (itemTokens.has(token)) shared++;
+      else extra++;
     }
     if (shared === 0) continue;
-    scored.push({ food, score: shared / itemTokens.size });
+    // Penalise words the product has but the item name does not, so a plain
+    // "Nutella" outranks "Nutella & go! ... breadsticks" instead of tying.
+    scored.push({ food, score: shared / (itemTokens.size + extra * 0.5) });
   }
   // Stable sort keeps the earlier OFF result for equal scores.
   scored.sort((left, right) => right.score - left.score);
@@ -175,7 +186,7 @@ function addNote(uncertainties: string[], note: string): string[] {
 function withMatch(
   candidate: Candidate,
   match: Match,
-  extraNote?: string,
+  options: { allowBarcode: boolean; extraNote?: string } = { allowBarcode: true },
 ): Candidate {
   const { food, nutrition } = match;
   const productId =
@@ -196,7 +207,7 @@ function withMatch(
     ? candidate.uncertainties
     : [];
   uncertainties = addNote(uncertainties, note);
-  if (extraNote) uncertainties = addNote(uncertainties, extraNote);
+  if (options.extraNote) uncertainties = addNote(uncertainties, options.extraNote);
   const result: Candidate = {
     ...candidate,
     labelNutrition: {
@@ -205,8 +216,11 @@ function withMatch(
       basis: nutrition.basis,
       source,
     },
-    barcode:
-      candidate.barcode ?? food.barcode ?? (food.id && BARCODE.test(food.id) ? food.id : null),
+    // A name match is a guess; writing its barcode onto the candidate would make
+    // that guess look like something read off the package.
+    barcode: options.allowBarcode
+      ? candidate.barcode ?? food.barcode ?? (food.id && BARCODE.test(food.id) ? food.id : null)
+      : candidate.barcode,
     uncertainties,
   };
 
@@ -217,6 +231,10 @@ function withMatch(
   if (result.packageSizeGrams == null && food.packageBasis) {
     const grams = gramsFor(food.packageBasis);
     if (grams !== null) result.packageSizeGrams = grams;
+  }
+  if (result.packageSizeMl == null && food.packageBasis) {
+    const millilitres = millilitresFor(food.packageBasis);
+    if (millilitres !== null) result.packageSizeMl = millilitres;
   }
   return result;
 }
@@ -242,7 +260,7 @@ async function resolve(
     const query = candidate.item?.trim() || first?.name?.trim() || "";
     if (query) {
       const match = await firstWithNutrition(await deps.searchFood(query), deps);
-      if (match) return withMatch(candidate, match);
+      if (match) return withMatch(candidate, match, { allowBarcode: true });
     }
     return candidate;
   }
@@ -254,11 +272,10 @@ async function resolve(
   if (!query) return candidate;
   const match = await bestNameMatch(await deps.searchFood(query), item, deps);
   return match
-    ? withMatch(
-        candidate,
-        match,
-        match.score >= MATCH_THRESHOLD ? undefined : NAME_MATCH_NOTE,
-      )
+    ? withMatch(candidate, match, {
+        allowBarcode: false,
+        extraNote: match.score >= MATCH_THRESHOLD ? undefined : NAME_MATCH_NOTE,
+      })
     : candidate;
 }
 

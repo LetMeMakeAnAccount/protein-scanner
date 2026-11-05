@@ -41,6 +41,8 @@ export type Price = {
 export type PackageSize = {
   amount: number;
   unit: "g" | "kg" | "oz" | "lb" | "ml" | "fl_oz";
+  /** Units per pack, e.g. 6 for "6 x 500 mL". */
+  count?: number;
 };
 
 export type ConfirmedInput = { food: Food; nutrition: Nutrition | null; price: Price | null };
@@ -55,6 +57,8 @@ export type Candidate = {
   packageSize?: PackageSize | null;
   /** Deterministically derived mass; null for volume units or implausible values. */
   packageSizeGrams?: number | null;
+  /** Deterministically derived volume in millilitres; null for mass units. */
+  packageSizeMl?: number | null;
   uncertainties: string[];
 };
 export type ImageInput = { bytes: Uint8Array; mediaType: string };

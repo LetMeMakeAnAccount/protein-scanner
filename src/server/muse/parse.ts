@@ -10,7 +10,7 @@ const modelCandidate = z.object({
   barcode: z.string().max(1000).refine((value) => value.trim().length > 0).nullable(),
   price: priceSchema.omit({ observedAt: true }).extend({ basis, source: z.literal("label") }).strict().nullable(),
   labelNutrition: nutritionSchema.extend({ basis, source: labelSource }).strict().nullable(),
-  packageSize: z.object({ amount: z.number(), unit: z.enum(packageUnits) }).strict().nullable(),
+  packageSize: z.object({ amount: z.number(), unit: z.enum(packageUnits), count: z.number().int().min(1).max(100).optional() }).strict().nullable(),
   uncertainties: z.array(z.string().max(1000).refine((value) => value.trim().length > 0)).max(100),
 }).strict();
 
@@ -24,7 +24,6 @@ const currencyCodes = new Set(Intl.supportedValuesOf("currency"));
 const priceUncertainty = "Price looked implausible and was ignored; enter it yourself.";
 const proteinUncertainty = "Protein value looked implausible and was ignored.";
 const energyUncertainty = "Energy value looked implausible and was ignored.";
-const volumeUncertainty = "Package volume, not weight; enter grams if the label gives a drained weight.";
 
 /** Exact factors; ounces are mass here, never reinterpreted as grams. */
 const gramsPerUnit: Partial<Record<PackageSize["unit"], number>> = {
@@ -63,17 +62,28 @@ function isPlausiblePackageAmount(amount: number): boolean {
   return Number.isFinite(amount) && amount > 0 && amount <= MAX_PACKAGE_GRAMS;
 }
 
-/** Mass conversion is deterministic; volume has no density, so it stays unmeasured. */
+/** Mass conversion is deterministic; volume converts to millilitres only. */
 function gramsFor(packageSize: PackageSize): number | null {
   const factor = gramsPerUnit[packageSize.unit];
   if (factor === undefined) return null;
+  const count = packageSize.count ?? 1;
   if (!isPlausiblePackageAmount(packageSize.amount)) return null;
-  const grams = packageSize.amount * factor;
+  const grams = packageSize.amount * factor * count;
   if (!Number.isFinite(grams) || grams > MAX_PACKAGE_GRAMS) return null;
   return Math.round(grams * 100) / 100;
 }
 
-/** Keep the printed quantity and attach its grams, never inventing a volume-to-mass mapping. */
+function millilitresFor(packageSize: PackageSize): number | null {
+  const factor = packageSize.unit === "ml" ? 1 : packageSize.unit === "fl_oz" ? 29.5735295625 : undefined;
+  if (factor === undefined) return null;
+  const count = packageSize.count ?? 1;
+  if (!isPlausiblePackageAmount(packageSize.amount)) return null;
+  const millilitres = packageSize.amount * factor * count;
+  if (!Number.isFinite(millilitres) || millilitres > 1_000_000) return null;
+  return Math.round(millilitres * 100) / 100;
+}
+
+/** Keep the printed quantity and attach its derived mass or volume. */
 function withPackageGrams(candidate: Candidate): Candidate {
   const packageSize = candidate.packageSize ?? null;
   if (!packageSize) return { ...candidate, packageSize: null, packageSizeGrams: null };
@@ -83,9 +93,7 @@ function withPackageGrams(candidate: Candidate): Candidate {
       ...candidate,
       packageSize,
       packageSizeGrams: null,
-      uncertainties: isPlausiblePackageAmount(packageSize.amount)
-        ? appendUncertainty(candidate.uncertainties, volumeUncertainty)
-        : candidate.uncertainties,
+      packageSizeMl: millilitresFor(packageSize),
     };
   }
   return { ...candidate, packageSize, packageSizeGrams: gramsFor(packageSize) };
