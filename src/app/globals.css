@@ -446,6 +446,43 @@ fieldset.nutrition {
   font-weight: 600;
 }
 
+.nutrition-source {
+  margin: -2px 0 14px;
+  color: var(--green-dark);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.nutrition-source-link {
+  margin-left: 8px;
+  white-space: nowrap;
+}
+
+.nutrition-find {
+  margin-top: 12px;
+}
+
+.find-nutrition {
+  min-height: 40px;
+  padding: 4px 14px;
+  font-size: 0.85rem;
+}
+
+.result-uncertainties {
+  margin: 0 0 14px;
+  padding: 10px 14px 10px 30px;
+  color: #7a4d0d;
+  font-size: 0.9rem;
+  font-weight: 600;
+  background: var(--amber-bg);
+  border: 1px solid var(--amber-line);
+  border-radius: 10px;
+}
+
+.result-uncertainties li + li {
+  margin-top: 2px;
+}
+
 .edit-values {
   margin-top: 20px;
   padding: 16px;

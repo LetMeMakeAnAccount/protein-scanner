@@ -41,6 +41,26 @@ describe("transient image analysis", () => {
     expect(response.status).toBe(200); expect(await response.json()).toEqual({ ok: true, data: { candidate } });
     expect(response.headers.get("cache-control")).toBe("no-store"); expect(analyze).toHaveBeenCalledTimes(1);
   });
+  it("returns the enriched candidate from the optional enrichment step", async () => {
+    const enriched = { ...candidate, uncertainties: ["filled from Open Food Facts"] };
+    const enrich = vi.fn(async () => enriched);
+    const withEnrich = createImageHandlers({ allowedOrigins: [origin], resolveClientIdentity: () => "peer", quota: new MemoryQuota({ enabled: true, globalCap: 5 }), muse: { analyze }, sanitize, enrich });
+    const response = await withEnrich.analyze(request());
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true, data: { candidate: enriched } });
+    expect(enrich).toHaveBeenCalledTimes(1);
+    expect(enrich).toHaveBeenCalledWith(candidate);
+  });
+  it("returns the parsed candidate with 200 when enrichment throws", async () => {
+    const enrich = vi.fn(async () => { throw new Error("Open Food Facts unavailable"); });
+    const withEnrich = createImageHandlers({ allowedOrigins: [origin], resolveClientIdentity: () => "peer", quota: new MemoryQuota({ enabled: true, globalCap: 5 }), muse: { analyze }, sanitize, enrich });
+    const response = await withEnrich.analyze(request());
+    expect(response.status).toBe(200);
+    const body = JSON.stringify(await response.json());
+    expect(body).toContain('"candidate"');
+    expect(body).not.toContain("Open Food Facts unavailable");
+    expect(JSON.parse(body)).toEqual({ ok: true, data: { candidate } });
+  });
   it("rejects missing images, extra fields and duplicate images before processing", async () => {
     const send = (body: FormData) => new Request(`${origin}/api/scan/analyze`, { method: "POST", headers: { origin }, body });
     const duplicate = new FormData();

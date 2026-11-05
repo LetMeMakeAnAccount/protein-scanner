@@ -29,6 +29,7 @@ type Props = {
   onDiaryAmount: (value: string) => void;
   onDiaryUnit: (value: PhysicalUnit) => void;
   onAddToDiary: () => void;
+  onFindNutrition: () => void;
   onStartAgain: () => void;
 };
 
@@ -56,12 +57,16 @@ export default function ResultsPanel({
   onDiaryAmount,
   onDiaryUnit,
   onAddToDiary,
+  onFindNutrition,
   onStartAgain,
 }: Props) {
   const packageInfo = effectivePackage(draft);
   const perCurrency = metricValue(calculation.proteinPerCurrency);
   const per100Kcal = metricValue(calculation.proteinPer100Kcal);
   const currencyLabel = input.price ? `Protein per ${draft.currency}` : "Protein per dollar";
+  const nutritionFromOff = Boolean(input.nutrition) && draft.nutritionSource.kind === "off";
+  const nutritionUrl = draft.nutritionSource.url ?? "";
+  const nutritionMissing = draft.proteinG.trim() === "" && draft.energyKcal.trim() === "";
 
   const tags = Array.from(
     new Set(
@@ -90,6 +95,14 @@ export default function ResultsPanel({
         </div>
       </header>
 
+      {draft.uncertainties.length > 0 && (
+        <ul className="result-uncertainties" aria-label="Check these">
+          {draft.uncertainties.map((uncertainty) => (
+            <li key={uncertainty}>{uncertainty}</li>
+          ))}
+        </ul>
+      )}
+
       <div className="metrics" aria-live="polite">
         <div className="metric metric-primary" role="group" aria-label={currencyLabel}>
           <p className="metric-label">{currencyLabel}</p>
@@ -109,7 +122,7 @@ export default function ResultsPanel({
         </div>
       </div>
 
-      <p className="check-line">Check the label — values can be wrong.</p>
+      {!nutritionFromOff && <p className="check-line">Check the label — values can be wrong.</p>}
 
       <section className="edit-values" aria-labelledby="edit-values-heading">
         <h3 id="edit-values-heading">Edit values</h3>
@@ -190,6 +203,22 @@ export default function ResultsPanel({
           </div>
           <fieldset className="nutrition">
             <legend>Nutrition</legend>
+            {nutritionFromOff && (
+              <p className="nutrition-source">
+                Nutrition from Open Food Facts — check it.{" "}
+                {nutritionUrl && (
+                  <a
+                    className="nutrition-source-link"
+                    href={nutritionUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="Open Food Facts product page"
+                  >
+                    Product page
+                  </a>
+                )}
+              </p>
+            )}
             <div className="grid-2">
               <div className="field">
                 <label htmlFor="result-protein-g">Protein (g)</label>
@@ -244,6 +273,13 @@ export default function ResultsPanel({
                 </select>
               </div>
             </div>
+            {nutritionMissing && (
+              <div className="nutrition-find">
+                <button type="button" className="button button-quiet find-nutrition" onClick={onFindNutrition}>
+                  Find nutrition
+                </button>
+              </div>
+            )}
           </fieldset>
         </form>
       </section>

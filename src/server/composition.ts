@@ -4,6 +4,7 @@ import type { Food, Nutrition } from "../contracts/types";
 import { createImageHandlers as createScanImageHandlers } from "./http/image";
 import { createOffImageClient, productImageUrl } from "./images/offImages";
 import { MuseClient } from "./muse/client";
+import { enrichCandidate } from "./nutrition/enrich";
 import { createOffClient } from "./nutrition/off";
 import { createOpenPricesClient, type PriceObservation } from "./prices/openPrices";
 import { MemoryQuota } from "./quota/memory";
@@ -348,6 +349,7 @@ export function createProductionServices(env: NodeJS.ProcessEnv) {
       resolveClientIdentity,
       quota: quotaFor(enabled, cap),
       muse: new MuseClient({ enabled, apiKey: key, endpoint, model }),
+      enrich: (candidate) => enrichCandidate(candidate, off),
     }),
   };
 }

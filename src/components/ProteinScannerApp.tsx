@@ -314,6 +314,22 @@ export default function ProteinScannerApp() {
     }
   }
 
+  function handleFindNutritionFromResults() {
+    // Move to the review form, where the existing name search lives, and run
+    // it against the item name already in this draft.
+    cameraRequestRef.current += 1;
+    setStartingCamera(false);
+    stopScannerStream();
+    setView("review");
+    setReviewNotice("");
+    setConfirmError("");
+    setOffMatches([]);
+    setOffSelected(false);
+    setOffBackup(null);
+    setOffStatus("");
+    void handleFindNutrition();
+  }
+
   function applyOffMatch(match: FoodMatch) {
     setOffBackup(draft);
     setOffSelected(true);
@@ -532,11 +548,11 @@ export default function ProteinScannerApp() {
               <p className="muted">
                 Source:{" "}
                 {draft.provenanceUrl ? (
-                  <a href={draft.provenanceUrl} target="_blank" rel="noreferrer">
+                  <a href={draft.provenanceUrl} target="_blank" rel="noopener noreferrer">
                     Open Food Facts
                   </a>
                 ) : (
-                  draft.provenanceLabel
+                  <strong>{draft.provenanceLabel}</strong>
                 )}
                 . Correct anything that is wrong — nothing is confirmed yet.
               </p>
@@ -765,6 +781,7 @@ export default function ProteinScannerApp() {
               onDiaryAmount={setDiaryAmount}
               onDiaryUnit={setDiaryUnit}
               onAddToDiary={handleAddToDiary}
+              onFindNutrition={handleFindNutritionFromResults}
               onStartAgain={() => setView("home")}
             />
           )}

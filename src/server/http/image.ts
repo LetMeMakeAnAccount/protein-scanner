@@ -15,6 +15,7 @@ export type ImageHandlerDependencies = {
   quota: QuotaStore;
   muse: { analyze(image: ImageInput, context: QuotaActionContext): Promise<Candidate> };
   sanitize?: (image: ImageInput) => Promise<ImageInput>;
+  enrich?: (candidate: Candidate) => Promise<Candidate>;
 };
 class RouteError extends Error {
   constructor(
@@ -303,7 +304,22 @@ export function createImageHandlers(deps: ImageHandlerDependencies) {
               context.assertActive();
               const image = await sanitizeForModel(input, deps.sanitize);
               context.assertActive();
-              return parseCandidate(await deps.muse.analyze(image, context));
+              const candidate = parseCandidate(
+                await deps.muse.analyze(image, context),
+              );
+              context.assertActive();
+
+              let enriched = candidate;
+              if (deps.enrich) {
+                try {
+                  enriched = await deps.enrich(candidate);
+                } catch {
+                  // Enrichment is best effort; a failed lookup must not fail the scan.
+                  enriched = candidate;
+                }
+              }
+              context.assertActive();
+              return enriched;
             } finally {
               releaseAbortWiring();
             }

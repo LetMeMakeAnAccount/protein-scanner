@@ -6,7 +6,7 @@ export default defineConfig({
       {
         test: {
           name: "node",
-          include: ["tests/**/*.{test,spec}.{ts,tsx}"],
+          include: ["tests/**/*.{test,spec}.{ts,tsx}", "src/**/*.{test,spec}.{ts,tsx}"],
           exclude: ["tests/ui/**"],
           environment: "node",
           setupFiles: ["./vitest.setup.ts"],

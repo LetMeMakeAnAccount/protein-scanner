@@ -18,7 +18,7 @@ Where the confirmed inputs support it, the app calculates:
 - protein per dollar (displayed as `g protein / $` for USD; otherwise named by currency), and
 - protein per 100 kcal.
 
-Both metrics require compatible quantities and valid inputs. If a value is missing or incompatible, that metric is shown as unavailable rather than guessed. Barcode lookup and search use Open Food Facts (OFF); nutrition is attributed to an OFF record, a visibly read label, or user input.
+Both metrics require compatible quantities and valid inputs. If a value is missing or incompatible, that metric is shown as unavailable rather than guessed. Barcode lookup and search use Open Food Facts (OFF); nutrition is attributed to an OFF record, a visibly read label, or user input. When a scan shows no usable nutrition panel, missing nutrition is filled from Open Food Facts and labelled for review.
 
 After confirmation, a food can be added to a device-local diary with its amount and available protein/energy values; totals are only shown for entries with compatible known values.
 

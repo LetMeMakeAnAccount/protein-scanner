@@ -112,8 +112,30 @@ export function candidateToDraft(candidate: Candidate, previewUrl: string | null
       draft.basisUnit = nutrition.basis.unit;
     }
     draft.nutritionSource = nutrition.source;
-    draft.provenanceLabel = "Meta label";
-    draft.nutritionNote = "From label";
+    switch (nutrition.source.kind) {
+      case "label":
+        draft.provenanceLabel = "From the label";
+        draft.provenanceUrl = "";
+        draft.nutritionNote = "Check it against the package";
+        break;
+      case "off": {
+        const productId = nutrition.source.productId?.trim() ?? "";
+        const barcode = candidate.barcode?.trim() ?? "";
+        draft.provenanceLabel = "Open Food Facts";
+        draft.provenanceUrl = nutrition.source.url ?? "";
+        draft.nutritionNote =
+          barcode !== "" && barcode === productId ? "Matched by barcode" : "Matched by name — check it";
+        // Enrichment adds a long note of its own; the results screen says the
+        // same thing in one short line, so only that generated note is dropped.
+        draft.uncertainties = candidate.uncertainties.filter(
+          (text) => !text.startsWith("Nutrition filled from Open Food Facts"),
+        );
+        break;
+      }
+      default:
+        draft.provenanceLabel = "Meta label";
+        draft.nutritionNote = "From label";
+    }
   } else if (candidate.item || candidate.price) {
     draft.provenanceLabel = "Meta scan — check it";
   }
